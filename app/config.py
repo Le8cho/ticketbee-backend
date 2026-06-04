@@ -3,6 +3,11 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     APP_NAME: str = "TechFix Backend"
     DEBUG: bool = False
+    APP_ENV: str = "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.APP_ENV == "development"
 
     # Azure SQL
     DATABASE_URL: str
