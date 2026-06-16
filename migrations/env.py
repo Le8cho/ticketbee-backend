@@ -2,6 +2,9 @@ import asyncio
 import os
 import sys
 from logging.config import fileConfig
+# Al inicio del archivo, agrega:
+from app.database import Base
+from app.models import dispositivo, cliente, pago, ticket_model  # importa todos los modelos
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
