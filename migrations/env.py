@@ -2,6 +2,9 @@ import asyncio
 import os
 import sys
 from logging.config import fileConfig
+# Al inicio del archivo, agrega:
+from app.database import Base
+from app.models import dispositivo, cliente, pago, ticket_model  # importa todos los modelos
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -9,17 +12,14 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+# Agrega raíz del proyecto al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.database import Base       # noqa: E402
-from app.config import settings     # noqa: E402
-from app.models import (            # noqa: E402, F401
-    TipoDispositivo,
-    Tecnico,
-    Cliente,
-    Dispositivo,
-    Servicio,
-    Ticket,
+# Importar Base y TODOS los modelos para que Alembic los detecte
+from app.database import Base          # noqa: E402
+from app.config import settings        # noqa: E402
+from app.models import (               # noqa: E402, F401
+    cliente, dispositivo, pago, ticket_model, tipo_dispositivo,tecnico
 )
 
 config = context.config
@@ -29,6 +29,7 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Inyectar DATABASE_URL desde .env
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 

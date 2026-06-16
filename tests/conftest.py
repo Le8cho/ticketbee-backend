@@ -1,7 +1,7 @@
 """
 Configuración global de tests.
 
-NullPool evita que asyncpg reutilice conexiones entre tests.
+NullPool: evita que asyncpg reutilice conexiones entre tests.
 Sin esto, el pool queda atado al event loop del primer test
 y los siguientes fallan con "another operation is in progress".
 """
