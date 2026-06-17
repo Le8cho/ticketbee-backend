@@ -19,9 +19,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.database import Base          # noqa: E402
 from app.config import settings        # noqa: E402
 from app.models import (               # noqa: E402, F401
-    cliente, dispositivo, pago, ticket, tipo_dispositivo
+    cliente, dispositivo, pago, ticket_model, tipo_dispositivo,tecnico
 )
-from app.models import tecnico         # noqa: E402, F401
 
 config = context.config
 

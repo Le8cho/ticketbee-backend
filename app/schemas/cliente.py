@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, field_serializer
 
+
+# ── Auth schemas (usados por Persona 1 — auth_service) ────────────────────────
 
 class ClienteRegister(BaseModel):
     nombre: str
@@ -54,3 +56,71 @@ class ClienteOut(BaseModel):
     creado_en: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Gestión de clientes — SD-17 (Persona 4) ───────────────────────────────────
+
+class ClienteListItem(BaseModel):
+    """Ítem del listado de clientes para el panel del técnico."""
+    cliente_id: uuid.UUID
+    nombre: str
+    email: str
+    distrito: str
+    tickets_activos: int
+    ultimo_ticket_estado: str | None
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_serializer("cliente_id")
+    def serialize_uuid(self, v: uuid.UUID) -> str:
+        return str(v)
+
+
+class TicketResumen(BaseModel):
+    ticket_id: uuid.UUID
+    estado: str
+    servicio_nombre: str | None
+    precio_base: float | None
+    precio_final: float | None
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_serializer("ticket_id")
+    def serialize_uuid(self, v: uuid.UUID) -> str:
+        return str(v)
+
+
+class DispositivoConTickets(BaseModel):
+    dispositivo_id: uuid.UUID
+    tipo_nombre: str | None
+    marca: str
+    modelo: str
+    numero_serie: str | None
+    activo: bool
+    tickets: list[TicketResumen]
+
+    model_config = {"from_attributes": True}
+
+    @field_serializer("dispositivo_id")
+    def serialize_uuid(self, v: uuid.UUID) -> str:
+        return str(v)
+
+
+class ClienteProfile(BaseModel):
+    """Perfil completo del cliente con dispositivos e historial de tickets."""
+    cliente_id: uuid.UUID
+    nombre: str
+    email: str
+    distrito: str
+    email_verificado: bool
+    activo: bool
+    creado_en: datetime
+    dispositivos: list[DispositivoConTickets]
+
+    model_config = {"from_attributes": True}
+
+    @field_serializer("cliente_id")
+    def serialize_uuid(self, v: uuid.UUID) -> str:
+        return str(v)

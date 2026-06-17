@@ -27,4 +27,6 @@ class Cliente(Base):
     dispositivos: Mapped[list["Dispositivo"]] = relationship(  # noqa: F821
         "Dispositivo", back_populates="cliente"
     )
-    # tickets: relación agregada por el módulo de tickets (Persona 3)
+    tickets: Mapped[list["Ticket"]] = relationship(  # noqa: F821
+        "Ticket", back_populates="cliente"
+    )
