@@ -11,10 +11,10 @@ class Settings(BaseSettings):
         return self.APP_ENV == "development"
     APP_ENV: str = "development"
 
-    # Base de datos (Supabase PostgreSQL via pooler)
+    # Base de datos
     DATABASE_URL: str
 
-    # JWT — debe coincidir con JWT_SECRET de Supabase
+    # JWT — debe coincidir con JWT_SECRET
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -26,10 +26,6 @@ class Settings(BaseSettings):
     # Azure Blob Storage
     AZURE_STORAGE_CONNECTION_STR: str = ""
     AZURE_STORAGE_CONTAINER: str = ""
-
-    @property
-    def is_development(self) -> bool:
-        return self.APP_ENV == "development"
 
     class Config:
         env_file = ".env"
