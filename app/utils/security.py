@@ -6,26 +6,30 @@ Utilidades de seguridad:
     (usadas por TODOS los demás módulos)
 """
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
 
 from app.config import settings
 
+@dataclass
+class UsuarioActual:
+    user_id: uuid.UUID
+    rol: str
+
+
 # ── Bcrypt ──────────────────────────────────────────────────────
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def hash_password(plain: str) -> str:
-    return _pwd_ctx.hash(plain)
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_ctx.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 # ── JWT ─────────────────────────────────────────────────────────
@@ -77,6 +81,21 @@ async def get_current_cliente(
                             detail="Se requiere rol cliente")
     try:
         return uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Token sin subject valido")
+
+
+async def get_current_user_dev(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> UsuarioActual:
+    """Stub de desarrollo: acepta cualquier JWT válido sin chequeo de rol."""
+    payload = _decode_token(credentials.credentials)
+    try:
+        return UsuarioActual(
+            user_id=uuid.UUID(payload["sub"]),
+            rol=payload.get("rol", ""),
+        )
     except (KeyError, ValueError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Token sin subject valido")

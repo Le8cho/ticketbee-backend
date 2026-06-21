@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Text, ForeignKey, SmallInteger, TIMESTAMP, UniqueConstraint
+from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, SmallInteger, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from app.database import Base
 
 
@@ -14,10 +14,10 @@ class Dispositivo(Base):
     )
 
     dispositivo_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4
     )
     cliente_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
+        UNIQUEIDENTIFIER,
         ForeignKey("clientes.cliente.cliente_id", ondelete="RESTRICT"),
         nullable=False,
     )
@@ -32,12 +32,12 @@ class Dispositivo(Base):
     foto_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     creado_en: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     inactivado_en: Mapped[datetime | None] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True
     )
 
     cliente: Mapped["Cliente"] = relationship("Cliente", back_populates="dispositivos")  # noqa: F821

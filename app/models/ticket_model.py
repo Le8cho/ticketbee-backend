@@ -7,6 +7,10 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.cliente import Cliente
+    from app.models.servicio import Servicio
 
 from app.database import Base
 
@@ -21,12 +25,12 @@ class TicketEstado(str, enum.Enum):
 
 
 class TicketDispositivo(Base):
-    __table__name = "TICKET_DISPOSITIVO"
+    __tablename__ = "ticket_dispositivo"
     __table_args__ = {"schema": "clientes"}
 
     ticket_id: Mapped[uuid.UUID] = mapped_column(
         UNIQUEIDENTIFIER,
-        ForeignKey("clientes.TICKET.ticket_id"),
+        ForeignKey("clientes.ticket.ticket_id"),
         primary_key=True,
     )
     dispositivo_id: Mapped[uuid.UUID] = mapped_column(
@@ -38,7 +42,7 @@ class TicketDispositivo(Base):
 
 
 class Ticket(Base):
-    __tablename__ = "TICKET"
+    __tablename__ = "ticket"
     __table_args__ = {"schema": "clientes"}
 
     ticket_id: Mapped[uuid.UUID] = mapped_column(
@@ -46,17 +50,17 @@ class Ticket(Base):
     )
     cliente_id: Mapped[uuid.UUID] = mapped_column(
         UNIQUEIDENTIFIER,
-        ForeignKey("clientes.CLIENTE.cliente_id"),
+        ForeignKey("clientes.cliente.cliente_id"),
         nullable=False,
     )
     servicio_id: Mapped[uuid.UUID] = mapped_column(
         UNIQUEIDENTIFIER,
-        ForeignKey("owner.SERVICIO.servicio_id"),
+        ForeignKey("owner.servicio.servicio_id"),
         nullable=False,
     )
     tecnico_id: Mapped[uuid.UUID | None] = mapped_column(
         UNIQUEIDENTIFIER,
-        ForeignKey("owner.TECNICO.tecnico_id"),
+        ForeignKey("owner.tecnico.tecnico_id"),
         nullable=True,
     )
     estado: Mapped[TicketEstado] = mapped_column(
@@ -85,6 +89,11 @@ class Ticket(Base):
     actualizado_en: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    cliente: Mapped["Cliente"] = relationship(back_populates="tickets")
+    servicio: Mapped["Servicio"] = relationship(back_populates="tickets")
     dispositivos: Mapped[list["TicketDispositivo"]] = relationship(
         back_populates="ticket", cascade="all, delete-orphan"
     )
+
+
+ticket_dispositivo = TicketDispositivo.__table__

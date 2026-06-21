@@ -6,10 +6,11 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     APP_ENV: str = "production"
 
+    APP_ENV: str = "development"
+
     @property
     def is_development(self) -> bool:
         return self.APP_ENV == "development"
-    APP_ENV: str = "development"
 
     # Base de datos
     DATABASE_URL: str
