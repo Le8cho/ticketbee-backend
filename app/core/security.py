@@ -1,21 +1,21 @@
-"""
-Utilidades de seguridad:
-  - Hash/verify de contraseñas con bcrypt
-  - Crear / decodificar JWT
-  - Dependencias FastAPI: get_current_cliente, get_current_tecnico
-    (usadas por TODOS los demás módulos)
-"""
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Literal
 
-import bcrypt
 import jwt
+from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
+
+
+_jwks_client = PyJWKClient(f"{settings.SUPABASE_URL}/auth/v1/.well-known/jwks.json")
+
+_bearer = HTTPBearer(auto_error=False)
+
+_DEBUG_CLIENTE_ID = uuid.UUID("b4f8b1fe-7db6-48b6-acf3-f8f72132958c")
+_DEBUG_TECNICO_ID = uuid.UUID("2ed61426-99e6-4a6f-9a8c-0b8c0edc013d")
+
 
 @dataclass
 class UsuarioActual:
@@ -23,36 +23,19 @@ class UsuarioActual:
     rol: str
 
 
-# ── Bcrypt ──────────────────────────────────────────────────────
-def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
-
-
-# ── JWT ─────────────────────────────────────────────────────────
-def create_access_token(
-    subject_id: uuid.UUID,
-    rol: Literal["cliente", "tecnico"],
-    expires_delta: timedelta | None = None,
-) -> str:
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    payload = {
-        "sub": str(subject_id),
-        "rol": rol,
-        "exp": expire,
-        "iat": datetime.now(timezone.utc),
-    }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+def _debug_activo() -> bool:
+    return settings.DEBUG_MODE and settings.APP_ENV == "development"
 
 
 def _decode_token(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=[settings.SUPABASE_ALGORITHM],
+            audience="authenticated",
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,50 +50,61 @@ def _decode_token(token: str) -> dict:
         )
 
 
-# ── Dependencias FastAPI ────────────────────────────────────────
-_bearer = HTTPBearer()
+def _extraer_usuario(payload: dict) -> UsuarioActual:
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sin subject valido",
+        )
+    rol = payload.get("user_metadata", {}).get("rol", "")
+    return UsuarioActual(user_id=user_id, rol=rol)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> UsuarioActual:
+    if _debug_activo():
+        return UsuarioActual(user_id=_DEBUG_CLIENTE_ID, rol="cliente")
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
+    payload = _decode_token(credentials.credentials)
+    return _extraer_usuario(payload)
 
 
 async def get_current_cliente(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> uuid.UUID:
-    """Retorna cliente_id (UUID) del token. Exige rol='cliente'."""
+    if _debug_activo():
+        return _DEBUG_CLIENTE_ID
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
     payload = _decode_token(credentials.credentials)
-    if payload.get("rol") != "cliente":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Se requiere rol cliente")
-    try:
-        return uuid.UUID(payload["sub"])
-    except (KeyError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Token sin subject valido")
-
-
-async def get_current_user_dev(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-) -> UsuarioActual:
-    """Stub de desarrollo: acepta cualquier JWT válido sin chequeo de rol."""
-    payload = _decode_token(credentials.credentials)
-    try:
-        return UsuarioActual(
-            user_id=uuid.UUID(payload["sub"]),
-            rol=payload.get("rol", ""),
+    usuario = _extraer_usuario(payload)
+    if usuario.rol != "cliente":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere rol cliente",
         )
-    except (KeyError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Token sin subject valido")
+    return usuario.user_id
 
 
 async def get_current_tecnico(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> uuid.UUID:
-    """Retorna tecnico_id (UUID) del token. Exige rol='tecnico'."""
+    if _debug_activo():
+        return _DEBUG_TECNICO_ID
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
     payload = _decode_token(credentials.credentials)
-    if payload.get("rol") != "tecnico":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                            detail="Se requiere rol tecnico")
-    try:
-        return uuid.UUID(payload["sub"])
-    except (KeyError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Token sin subject valido")
+    usuario = _extraer_usuario(payload)
+    if usuario.rol != "tecnico":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere rol tecnico",
+        )
+    return usuario.user_id
+
+
+get_current_user_dev = get_current_user

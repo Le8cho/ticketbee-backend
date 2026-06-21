@@ -4,7 +4,7 @@ from app.auth import router as auth_router
 from app.routers import clientes, dispositivos, catalogo, pagos, tickets
 
 
-app = FastAPI(title="TechFix API", version="1.0.0", debug=settings.DEBUG)
+app = FastAPI(title="TechFix API", version="1.0.0", debug=settings.DEBUG_MODE)
 
 app.include_router(auth_router.router,      prefix="/api/v1/auth",         tags=["Auth"])
 app.include_router(clientes.router,         prefix="/api/v1/clientes",     tags=["Clientes"])

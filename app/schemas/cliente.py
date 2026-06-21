@@ -51,7 +51,6 @@ class ClienteOut(BaseModel):
     nombre: str
     email: str
     distrito: str
-    email_verificado: bool
     activo: bool
     creado_en: datetime
 
@@ -114,7 +113,6 @@ class ClienteProfile(BaseModel):
     nombre: str
     email: str
     distrito: str
-    email_verificado: bool
     activo: bool
     creado_en: datetime
     dispositivos: list[DispositivoConTickets]
@@ -124,3 +122,13 @@ class ClienteProfile(BaseModel):
     @field_serializer("cliente_id")
     def serialize_uuid(self, v: uuid.UUID) -> str:
         return str(v)
+    
+    
+class PerfilOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    email: str
+    rol: str
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
