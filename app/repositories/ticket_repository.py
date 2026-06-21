@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.ticket_model import Ticket, TicketDispositivo, TicketEstado
+from app.models.ticket import Ticket, TicketDispositivo, TicketEstado
 
 
 async def crear_ticket(

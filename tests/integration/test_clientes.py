@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from main import app
-from app.utils.security import get_current_tecnico
+from app.core.security import get_current_tecnico
 
 TECNICO_ID_TEST = uuid.UUID("00000000-0000-0000-0000-000000000001")
 CLIENTE_ID_INEXISTENTE = uuid.UUID("00000000-0000-0000-0000-000000000000")

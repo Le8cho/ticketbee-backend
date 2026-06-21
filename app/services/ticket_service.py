@@ -6,9 +6,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ticket_model import TicketEstado
+from app.models.ticket import TicketEstado
 from app.repositories import ticket_repository as repo
-from app.schemas.ticket_schema import (
+from app.schemas.ticket import (
     TicketAceptar,
     TicketCrear,
     TicketListItem,

@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database import get_db
 from app.schemas.dispositivo import DispositivoCreate, DispositivoUpdate
 from app.services.dispositivo_service import DispositivoService
-from app.utils.responses import success
-from app.utils.security import get_current_cliente
+from app.core.responses import success
+from app.core.security import get_current_cliente
 
 router = APIRouter()
 

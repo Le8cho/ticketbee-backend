@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, SmallInteger, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
-from app.database import Base
+from app.core.database import Base
 
 
 class Dispositivo(Base):

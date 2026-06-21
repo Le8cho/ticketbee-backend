@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models.ticket_model import TicketEstado
-from app.schemas.ticket_schema import (
+from app.core.database import get_db
+from app.models.ticket import TicketEstado
+from app.schemas.ticket import (
     TicketAceptar,
     TicketCrear,
     TicketListItem,
@@ -14,10 +14,10 @@ from app.schemas.ticket_schema import (
     TicketResponse,
 )
 from app.services import ticket_service as service
-from app.utils.responses import error, success
+from app.core.responses import error, success
 
 # CORREGIR CUANDO LAS PRUEBAS HAYAN TERMINADO
-from app.utils.security import (
+from app.core.security import (
     UsuarioActual,
     get_current_user_dev as get_current_user,
     get_current_user_dev as require_cliente,

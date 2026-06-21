@@ -14,7 +14,7 @@ from app.models.cliente import Cliente
 from app.models.tecnico import Tecnico
 from app.repositories.cliente_repository import ClienteRepository
 from app.schemas.cliente import ClienteLogin, ClienteOut, ClienteRegister, TokenResponse
-from app.utils.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 TOKEN_EXPIRY_HOURS = 24

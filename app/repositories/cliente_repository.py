@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.cliente import Cliente
 from app.models.dispositivo import Dispositivo
-from app.models.ticket_model import Ticket, ticket_dispositivo
+from app.models.ticket import Ticket, ticket_dispositivo
 from app.models.servicio import Servicio
 
 

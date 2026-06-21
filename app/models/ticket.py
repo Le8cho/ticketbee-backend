@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from app.models.cliente import Cliente
     from app.models.servicio import Servicio
 
-from app.database import Base
+from app.core.database import Base
 
 
 class TicketEstado(str, enum.Enum):

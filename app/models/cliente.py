@@ -2,12 +2,12 @@ import uuid
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
-from app.database import Base
+from app.core.database import Base
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.dispositivo import Dispositivo
-    from app.models.ticket_model import Ticket
+    from app.models.ticket import Ticket
 
 
 class Cliente(Base):

@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 EstadoTicket = Literal["CREADO", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO"]
 TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
 
-from app.database import get_db
+from app.core.database import get_db
 from app.schemas.cliente import ClienteListItem, ClienteProfile
 from app.services.cliente_service import ClienteService
-from app.utils.responses import success, error
-from app.utils.security import get_current_tecnico
+from app.core.responses import success, error
+from app.core.security import get_current_tecnico
 
 router = APIRouter()
 

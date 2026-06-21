@@ -12,10 +12,10 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database import get_db
 from app.schemas.cliente import ClienteLogin, ClienteOut, ClienteRegister, TokenResponse
-from app.services import auth_service
-from app.utils.security import get_current_cliente
+from app.auth import service as auth_service
+from app.core.security import get_current_cliente
 
 router = APIRouter()
 
