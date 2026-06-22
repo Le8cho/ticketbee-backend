@@ -50,6 +50,44 @@ class DispositivoRepository:
             .order_by(Dispositivo.creado_en.desc())
         )
         return list(result.scalars().all())
+    
+    async def get_all(
+        self,
+        tipo_dispositivo_id: int | None = None,
+        estado_ticket: str | None = None,
+        servicio_id: UUID | None = None,
+        cliente_id: UUID | None = None,
+    ) -> list[Dispositivo]:
+        from app.models.ticket import Ticket, TicketDispositivo
+
+        q = (
+            select(Dispositivo)
+            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .where(Dispositivo.activo == True)
+        )
+
+        if tipo_dispositivo_id is not None:
+            q = q.where(Dispositivo.tipo_dispositivo_id == tipo_dispositivo_id)
+
+        if cliente_id is not None:
+            q = q.where(Dispositivo.cliente_id == cliente_id)
+
+        if estado_ticket is not None or servicio_id is not None:
+            q = q.join(
+                TicketDispositivo,
+                TicketDispositivo.dispositivo_id == Dispositivo.dispositivo_id,
+            ).join(
+                Ticket,
+                Ticket.ticket_id == TicketDispositivo.ticket_id,
+            )
+            if estado_ticket is not None:
+                q = q.where(Ticket.estado == estado_ticket)
+            if servicio_id is not None:
+                q = q.where(Ticket.servicio_id == servicio_id)
+
+        q = q.order_by(Dispositivo.creado_en.desc())
+        result = await self.db.execute(q)
+        return list(result.scalars().all())
 
     async def get_by_id(self, dispositivo_id: UUID, cliente_id: UUID) -> Dispositivo | None:
         result = await self.db.execute(

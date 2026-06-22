@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from azure.servicebus.aio import ServiceBusClient
 from azure.servicebus import ServiceBusMessage
 
-from app.config import settings
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,13 @@
 import uuid
 from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models.ticket_model import TicketEstado
-from app.schemas.ticket_schema import (
+from app.core.database import get_db
+from app.models.ticket import TicketEstado
+from app.schemas.ticket import (
     TicketAceptar,
     TicketCrear,
     TicketListItem,
@@ -14,14 +15,12 @@ from app.schemas.ticket_schema import (
     TicketResponse,
 )
 from app.services import ticket_service as service
-from app.utils.responses import error, success
-
-# CORREGIR CUANDO LAS PRUEBAS HAYAN TERMINADO
-from app.utils.security import (
+from app.core.responses import error, success
+from app.core.security import (
     UsuarioActual,
-    get_current_user_dev as get_current_user,
-    get_current_user_dev as require_cliente,
-    get_current_user_dev as require_tecnico,
+    get_current_user,
+    get_current_cliente as require_cliente,
+    get_current_tecnico as require_tecnico,
 )
 
 router = APIRouter()
@@ -33,30 +32,30 @@ router = APIRouter()
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def crear_ticket(
     payload: TicketCrear,
-    usuario: UsuarioActual = Depends(require_cliente),
+    cliente_id: uuid.UUID = Depends(require_cliente),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.crear_ticket(db, usuario.user_id, payload)
+    ticket = await service.crear_ticket(db, cliente_id, payload)
     return success(ticket.model_dump(mode="json"), "Ticket creado.", status.HTTP_201_CREATED)
 
 
 @router.patch("/{ticket_id}/confirmar-recepcion")
 async def confirmar_recepcion(
     ticket_id: uuid.UUID,
-    usuario: UsuarioActual = Depends(require_cliente),
+    cliente_id: uuid.UUID = Depends(require_cliente),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.confirmar_recepcion_cliente(db, ticket_id, usuario.user_id)
+    ticket = await service.confirmar_recepcion_cliente(db, ticket_id, cliente_id)
     return success(ticket.model_dump(mode="json"), "Recepción confirmada. Ticket finalizado.")
 
 
 @router.patch("/{ticket_id}/reabrir")
 async def reabrir_ticket(
     ticket_id: uuid.UUID,
-    usuario: UsuarioActual = Depends(require_cliente),
+    cliente_id: uuid.UUID = Depends(require_cliente),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.reabrir_por_garantia(db, ticket_id, usuario.user_id)
+    ticket = await service.reabrir_por_garantia(db, ticket_id, cliente_id)
     return success(ticket.model_dump(mode="json"), "Ticket reabierto por incidencia de garantía.")
 
 
@@ -67,10 +66,10 @@ async def reabrir_ticket(
 async def aceptar_ticket(
     ticket_id: uuid.UUID,
     payload: TicketAceptar,
-    usuario: UsuarioActual = Depends(require_tecnico),
+    tecnico_id: uuid.UUID = Depends(require_tecnico),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.aceptar_ticket(db, ticket_id, usuario.user_id, payload)
+    ticket = await service.aceptar_ticket(db, ticket_id, tecnico_id, payload)
     return success(ticket.model_dump(mode="json"), "Ticket aceptado.")
 
 
@@ -78,27 +77,27 @@ async def aceptar_ticket(
 async def rechazar_ticket(
     ticket_id: uuid.UUID,
     payload: TicketRechazar,
-    usuario: UsuarioActual = Depends(require_tecnico),
+    tecnico_id: uuid.UUID = Depends(require_tecnico),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.rechazar_ticket(db, ticket_id, usuario.user_id, payload)
+    ticket = await service.rechazar_ticket(db, ticket_id, tecnico_id, payload)
     return success(ticket.model_dump(mode="json"), "Ticket rechazado.")
 
 
 @router.patch("/{ticket_id}/confirmar-entrega")
 async def confirmar_entrega(
     ticket_id: uuid.UUID,
-    usuario: UsuarioActual = Depends(require_tecnico),
+    tecnico_id: uuid.UUID = Depends(require_tecnico),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.confirmar_entrega_tecnico(db, ticket_id, usuario.user_id)
+    ticket = await service.confirmar_entrega_tecnico(db, ticket_id, tecnico_id)
     return success(ticket.model_dump(mode="json"), "Entrega confirmada.")
 
 
 @router.patch("/{ticket_id}/archivar")
 async def archivar_ticket(
     ticket_id: uuid.UUID,
-    usuario: UsuarioActual = Depends(require_tecnico),
+    tecnico_id: uuid.UUID = Depends(require_tecnico),
     db: AsyncSession = Depends(get_db),
 ):
     await service.archivar_ticket(db, ticket_id)
@@ -122,11 +121,29 @@ async def obtener_ticket(
 @router.get("", response_model=None)
 async def listar_tickets(
     estado: Optional[TicketEstado] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if usuario.rol == "tecnico":
-        tickets = await service.listar_tickets_tecnico(db, estado)
+        tickets = await service.listar_tickets_tecnico(
+            db,
+            estado=estado,
+            cliente_id=cliente_id,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            servicio_id=servicio_id,
+            fecha_desde=fecha_desde,
+        )
     else:
-        tickets = await service.listar_tickets_cliente(db, usuario.user_id)
+        tickets = await service.listar_tickets_cliente(
+            db,
+            cliente_id=usuario.user_id,
+            estado=estado,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            servicio_id=servicio_id,
+            fecha_desde=fecha_desde,
+        )
     return success([t.model_dump(mode="json") for t in tickets], "OK")
