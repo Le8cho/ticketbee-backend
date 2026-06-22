@@ -25,6 +25,11 @@ class TicketRechazar(BaseModel):
     motivo_rechazo: str = Field(..., min_length=10, max_length=500)
 
 
+class GarantiaCreate(BaseModel):
+    fecha_inicio: datetime
+    fecha_vencimiento: datetime
+
+
 # Responses
 # -------------------------------
 

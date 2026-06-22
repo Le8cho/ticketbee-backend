@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.ticket import TicketEstado
 from app.schemas.ticket import (
+    GarantiaCreate,
     TicketAceptar,
     TicketCrear,
     TicketListItem,
@@ -100,8 +101,19 @@ async def archivar_ticket(
     tecnico_id: uuid.UUID = Depends(require_tecnico),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.archivar_ticket(db, ticket_id)
-    return success(None, "Ticket archivado.")
+    datos = await service.archivar_ticket(db, ticket_id)
+    return success(datos, "Ticket archivado.")
+
+
+@router.post("/{ticket_id}/garantia", status_code=status.HTTP_201_CREATED)
+async def registrar_garantia(
+    ticket_id: uuid.UUID,
+    payload: GarantiaCreate,
+    tecnico_id: uuid.UUID = Depends(require_tecnico),
+    db: AsyncSession = Depends(get_db),
+):
+    datos = await service.registrar_garantia(db, ticket_id, payload)
+    return success(datos, "Garantía registrada.", status.HTTP_201_CREATED)
 
 
 # Compartidos
@@ -125,6 +137,7 @@ async def listar_tickets(
     tipo_dispositivo_id: Optional[int] = None,
     servicio_id: Optional[uuid.UUID] = None,
     fecha_desde: Optional[datetime] = None,
+    garantia_vencida: Optional[bool] = None,
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -136,6 +149,7 @@ async def listar_tickets(
             tipo_dispositivo_id=tipo_dispositivo_id,
             servicio_id=servicio_id,
             fecha_desde=fecha_desde,
+            garantia_vencida=garantia_vencida,
         )
     else:
         tickets = await service.listar_tickets_cliente(

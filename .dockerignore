@@ -1,0 +1,10 @@
+azure_functions/
+Carpeta Temporal/
+.git/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.vscode/
+.claude/
