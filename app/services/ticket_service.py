@@ -166,19 +166,41 @@ async def obtener_ticket(
     return _a_response(ticket, ocultar_motivo=not es_tecnico)
 
 
-async def listar_tickets_cliente(
-    db: AsyncSession,
-    cliente_id: uuid.UUID,
-) -> list[TicketListItem]:
-    tickets = await repo.listar_por_cliente(db, cliente_id)
-    return [_a_list_item(t) for t in tickets]
-
-
 async def listar_tickets_tecnico(
     db: AsyncSession,
     estado: Optional[TicketEstado] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
 ) -> list[TicketListItem]:
-    tickets = await repo.listar_todos(db, estado=estado)
+    tickets = await repo.listar_todos(
+        db,
+        estado=estado,
+        cliente_id=cliente_id,
+        tipo_dispositivo_id=tipo_dispositivo_id,
+        servicio_id=servicio_id,
+        fecha_desde=fecha_desde,
+    )
+    return [_a_list_item(t) for t in tickets]
+
+
+async def listar_tickets_cliente(
+    db: AsyncSession,
+    cliente_id: uuid.UUID,
+    estado: Optional[TicketEstado] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
+) -> list[TicketListItem]:
+    tickets = await repo.listar_por_cliente(
+        db,
+        cliente_id=cliente_id,
+        estado=estado,
+        tipo_dispositivo_id=tipo_dispositivo_id,
+        servicio_id=servicio_id,
+        fecha_desde=fecha_desde,
+    )
     return [_a_list_item(t) for t in tickets]
 
 

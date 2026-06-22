@@ -1,5 +1,6 @@
 import uuid
 from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,11 +121,29 @@ async def obtener_ticket(
 @router.get("", response_model=None)
 async def listar_tickets(
     estado: Optional[TicketEstado] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if usuario.rol == "tecnico":
-        tickets = await service.listar_tickets_tecnico(db, estado)
+        tickets = await service.listar_tickets_tecnico(
+            db,
+            estado=estado,
+            cliente_id=cliente_id,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            servicio_id=servicio_id,
+            fecha_desde=fecha_desde,
+        )
     else:
-        tickets = await service.listar_tickets_cliente(db, usuario.user_id)
+        tickets = await service.listar_tickets_cliente(
+            db,
+            cliente_id=usuario.user_id,
+            estado=estado,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            servicio_id=servicio_id,
+            fecha_desde=fecha_desde,
+        )
     return success([t.model_dump(mode="json") for t in tickets], "OK")

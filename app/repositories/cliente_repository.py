@@ -165,7 +165,7 @@ class ClienteRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_sor_none()
+        return result.scalar_one_or_none()
 
     async def get_tickets_por_dispositivos(
         self, dispositivo_ids: list[uuid.UUID]
