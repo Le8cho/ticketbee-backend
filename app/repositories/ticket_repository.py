@@ -11,14 +11,14 @@ from app.models.ticket import Ticket, TicketDispositivo, TicketEstado
 
 async def crear_ticket(
         db:AsyncSession,
-        client_id: uuid.UUID,
+        cliente_id: uuid.UUID,
         servicio_id: uuid.UUID,
         dispositivo_id: uuid.UUID,
         precio_base: float,
         descripcion: Optional[str],
 ) -> Ticket:
     ticket = Ticket(
-        client_id=client_id,
+        cliente_id=cliente_id,
         servicio_id=servicio_id,
         precio_base=precio_base,
         descripcion=descripcion,
@@ -69,7 +69,7 @@ async def listar_todos(
     query = (
         select(Ticket)
         .options(selectinload(Ticket.dispositivos))
-        .order_by(Ticket.creado_en.decs())
+        .order_by(Ticket.creado_en.desc())
     )
     if estado is not None:
         query = query.where(Ticket.estado == estado)

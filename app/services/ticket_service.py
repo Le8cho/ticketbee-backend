@@ -263,10 +263,9 @@ async def confirmar_entrega_tecnico(
 
     ticket = await repo.obtener_por_id(db, ticket_id)
 
-    await publicar_evento_ticket("ticket.finalizado", {
+    await publicar_evento_ticket("ticket.entrega_confirmada", {
         "ticket_id": str(ticket.ticket_id),
         "cliente_id": str(ticket.cliente_id),
-        "fecha_finalizacion": ticket.fecha_finalizacion.isoformat(),
     })
 
     return _a_response(ticket)
