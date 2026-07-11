@@ -23,10 +23,12 @@ class Settings(BaseSettings):
 
     # Azure Blob Storage
     AZURE_STORAGE_CONNECTION_STR: str = ""
-    AZURE_STORAGE_CONTAINER: str = ""
+    AZURE_STORAGE_CONTAINER_DEVICES: str = ""
+    AZURE_STORAGE_CONTAINER_TICKETS: str = ""
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # ignora variables del .env que no están en Settings
 
 
 settings = Settings()

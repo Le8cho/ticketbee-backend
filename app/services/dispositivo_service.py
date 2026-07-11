@@ -3,6 +3,12 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.infrastructure.blob_storage import (
+    generate_sas_url,
+    upload_blob,
+    validar_imagen,
+)
 from app.repositories.dispositivo_repository import DispositivoRepository
 from app.schemas.dispositivo import (
     DispositivoCreate,
@@ -113,3 +119,41 @@ class DispositivoService:
                 detail="Dispositivo no encontrado",
             )
         await self.repo.soft_delete(dispositivo)
+
+    async def subir_foto(
+        self,
+        dispositivo_id: UUID,
+        cliente_id: UUID,
+        data: bytes,
+        content_type: str,
+    ) -> str:
+        """Valida, sube la foto al blob y actualiza foto_url en BD. Devuelve SAS URL (1h)."""
+        try:
+            validar_imagen(data, content_type)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+        dispositivo = await self.repo.get_by_id(dispositivo_id, cliente_id)
+        if not dispositivo:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo no encontrado")
+
+        blob_name = str(dispositivo_id)
+        blob_url = await upload_blob(
+            settings.AZURE_STORAGE_CONTAINER_DEVICES,
+            blob_name,
+            data,
+            content_type,
+        )
+        await self.repo.update(dispositivo, foto_url=blob_url)
+        return await generate_sas_url(settings.AZURE_STORAGE_CONTAINER_DEVICES, blob_name)
+
+    async def obtener_url_foto(self, dispositivo_id: UUID, cliente_id: UUID) -> str:
+        """Devuelve una SAS URL (1h) para la foto del dispositivo."""
+        dispositivo = await self.repo.get_by_id(dispositivo_id, cliente_id)
+        if not dispositivo:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispositivo no encontrado")
+        if not dispositivo.foto_url:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El dispositivo no tiene foto registrada")
+
+        blob_name = str(dispositivo_id)
+        return await generate_sas_url(settings.AZURE_STORAGE_CONTAINER_DEVICES, blob_name)

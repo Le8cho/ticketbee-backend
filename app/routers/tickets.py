@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,6 +16,10 @@ from app.schemas.ticket import (
     TicketResponse,
 )
 from app.services import ticket_service as service
+from app.services.attachment_service import AttachmentService
+
+MAX_ADJUNTO_BYTES = 10 * 1024 * 1024  # 10 MB — igual que blob_storage.MAX_SIZE_ADJUNTO
+
 from app.core.responses import error, success
 from app.core.security import (
     UsuarioActual,
@@ -152,12 +156,50 @@ async def listar_tickets(
             garantia_vencida=garantia_vencida,
         )
     else:
-        tickets = await service.listar_tickets_cliente(
-            db,
-            cliente_id=usuario.user_id,
-            estado=estado,
-            tipo_dispositivo_id=tipo_dispositivo_id,
-            servicio_id=servicio_id,
-            fecha_desde=fecha_desde,
-        )
+        tickets = await service.listar_tickets_cliente(db, usuario.user_id)
     return success([t.model_dump(mode="json") for t in tickets], "OK")
+
+
+# Adjuntos
+# --------------------------------------
+
+def _attachment_service(db: AsyncSession = Depends(get_db)) -> AttachmentService:
+    return AttachmentService(db)
+
+
+@router.post("/{ticket_id}/adjuntos", status_code=status.HTTP_201_CREATED)
+async def subir_adjunto(
+    ticket_id: uuid.UUID,
+    archivo: UploadFile = File(...),
+    usuario: UsuarioActual = Depends(get_current_user),
+    service: AttachmentService = Depends(_attachment_service),
+):
+    """Sube un adjunto al ticket (solo en estado EN_PROGRESO). Devuelve metadatos + SAS URL (1h)."""
+    data = await archivo.read()
+    if len(data) > MAX_ADJUNTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="El adjunto supera el límite de 10 MB.",
+        )
+    adjunto, sas_url = await service.subir_adjunto(
+        ticket_id=ticket_id,
+        rol=usuario.rol,
+        nombre_archivo=archivo.filename or "adjunto",
+        data=data,
+        content_type=archivo.content_type or "",
+    )
+    return success(
+        {"adjunto": adjunto.model_dump(mode="json"), "url": sas_url},
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.get("/{ticket_id}/adjuntos")
+async def listar_adjuntos(
+    ticket_id: uuid.UUID,
+    usuario: UsuarioActual = Depends(get_current_user),
+    service: AttachmentService = Depends(_attachment_service),
+):
+    """Lista todos los adjuntos de un ticket (metadatos, sin URLs)."""
+    adjuntos = await service.listar_adjuntos(ticket_id)
+    return success([a.model_dump(mode="json") for a in adjuntos])

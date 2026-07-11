@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,8 @@ from app.schemas.dispositivo import DispositivoCreate, DispositivoUpdate
 from app.services.dispositivo_service import DispositivoService
 from app.core.responses import success
 from app.core.security import get_current_cliente, get_current_user, UsuarioActual
+
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB — igual que blob_storage.MAX_SIZE_IMAGEN
 
 router = APIRouter()
 
@@ -83,3 +85,32 @@ async def desactivar_dispositivo(
     """Borrado lógico manual: marca el dispositivo como inactivo (activo=False)."""
     await service.desactivar(dispositivo_id, cliente_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{dispositivo_id}/foto", status_code=status.HTTP_200_OK)
+async def subir_foto_dispositivo(
+    dispositivo_id: UUID,
+    foto: UploadFile = File(...),
+    cliente_id: UUID = Depends(get_current_cliente),
+    service: DispositivoService = Depends(_service),
+):
+    """Sube o reemplaza la foto del dispositivo. Devuelve SAS URL válida 1 hora."""
+    data = await foto.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="La imagen supera el límite de 5 MB.",
+        )
+    sas_url = await service.subir_foto(dispositivo_id, cliente_id, data, foto.content_type or "")
+    return success({"url": sas_url})
+
+
+@router.get("/{dispositivo_id}/foto")
+async def obtener_foto_dispositivo(
+    dispositivo_id: UUID,
+    cliente_id: UUID = Depends(get_current_cliente),
+    service: DispositivoService = Depends(_service),
+):
+    """Devuelve una SAS URL firmada (1 hora) para ver la foto del dispositivo."""
+    sas_url = await service.obtener_url_foto(dispositivo_id, cliente_id)
+    return success({"url": sas_url})
