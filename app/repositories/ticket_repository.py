@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.ticket import Ticket, TicketDispositivo, TicketEstado
 from app.models.dispositivo import Dispositivo
+from app.models.garantia import Garantia
 
 
 async def crear_ticket(
@@ -57,6 +58,7 @@ async def listar_todos(
     tipo_dispositivo_id: Optional[int] = None,
     servicio_id: Optional[uuid.UUID] = None,
     fecha_desde: Optional[datetime] = None,
+    garantia_vencida: Optional[bool] = None,
 ) -> list[Ticket]:
     query = (
         select(Ticket)
@@ -79,8 +81,38 @@ async def listar_todos(
             Dispositivo,
             Dispositivo.dispositivo_id == TicketDispositivo.dispositivo_id,
         ).where(Dispositivo.tipo_dispositivo_id == tipo_dispositivo_id)
+    if garantia_vencida:
+        query = query.join(
+            Garantia,
+            Garantia.ticket_id == Ticket.ticket_id,
+        ).where(
+            Ticket.estado == TicketEstado.FINALIZADO,
+            Garantia.fecha_vencimiento < datetime.now(timezone.utc),
+        )
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+async def existe_garantia(db: AsyncSession, ticket_id: uuid.UUID) -> bool:
+    result = await db.execute(
+        select(Garantia.garantia_id).where(Garantia.ticket_id == ticket_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def crear_garantia(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    fecha_inicio: datetime,
+    fecha_vencimiento: datetime,
+) -> None:
+    garantia = Garantia(
+        ticket_id=ticket_id,
+        fecha_inicio=fecha_inicio,
+        fecha_vencimiento=fecha_vencimiento,
+    )
+    db.add(garantia)
+    await db.flush()
 
 
 async def listar_por_cliente(
