@@ -52,8 +52,34 @@ class DispositivoService:
         )
         return DispositivoOut.model_validate(dispositivo)
 
-    async def listar(self, cliente_id: UUID) -> list[DispositivoOut]:
-        dispositivos = await self.repo.get_all_by_cliente(cliente_id)
+    async def listar_todos(
+        self,
+        tipo_dispositivo_id: int | None = None,
+        estado_ticket: str | None = None,
+        servicio_id: UUID | None = None,
+        cliente_id: UUID | None = None,
+    ) -> list[DispositivoOut]:
+        dispositivos = await self.repo.get_all(
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            estado_ticket=estado_ticket,
+            servicio_id=servicio_id,
+            cliente_id=cliente_id,
+        )
+        return [DispositivoOut.model_validate(d) for d in dispositivos]
+
+    async def listar(
+        self,
+        cliente_id: UUID,
+        tipo_dispositivo_id: int | None = None,
+        estado_ticket: str | None = None,
+        servicio_id: UUID | None = None,
+    ) -> list[DispositivoOut]:
+        dispositivos = await self.repo.get_all(
+            cliente_id=cliente_id,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            estado_ticket=estado_ticket,
+            servicio_id=servicio_id,
+        )
         return [DispositivoOut.model_validate(d) for d in dispositivos]
 
     async def actualizar(

@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database import get_db
 from app.schemas.dispositivo import DispositivoCreate, DispositivoUpdate
 from app.services.dispositivo_service import DispositivoService
-from app.utils.responses import success
-from app.utils.security import get_current_cliente
+from app.core.responses import success
+from app.core.security import get_current_cliente, get_current_user, UsuarioActual
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB — igual que blob_storage.MAX_SIZE_IMAGEN
 
@@ -39,11 +39,28 @@ async def registrar_dispositivo(
 
 @router.get("")
 async def listar_dispositivos(
-    cliente_id: UUID = Depends(get_current_cliente),
+    usuario: UsuarioActual = Depends(get_current_user),
     service: DispositivoService = Depends(_service),
+    tipo_dispositivo_id: int | None = None,
+    estado_ticket: str | None = None,
+    servicio_id: UUID | None = None,
+    cliente_id: UUID | None = None,
 ):
-    """Devuelve todos los dispositivos activos del cliente autenticado."""
-    data = await service.listar(cliente_id)
+    """Técnico: todos los dispositivos activos (con filtros opcionales). Cliente: solo los suyos."""
+    if usuario.rol == "tecnico":
+        data = await service.listar_todos(
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            estado_ticket=estado_ticket,
+            servicio_id=servicio_id,
+            cliente_id=cliente_id,
+        )
+    else:
+        data = await service.listar(
+            cliente_id=usuario.user_id,
+            tipo_dispositivo_id=tipo_dispositivo_id,
+            estado_ticket=estado_ticket,
+            servicio_id=servicio_id,
+        )
     return success([d.model_dump(mode="json") for d in data])
 
 

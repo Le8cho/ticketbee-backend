@@ -6,9 +6,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ticket_model import TicketEstado
+from app.models.ticket import TicketEstado
 from app.repositories import ticket_repository as repo
-from app.schemas.ticket_schema import (
+from app.repositories.cliente_repository import ClienteRepository
+from app.schemas.ticket import (
+    GarantiaCreate,
     TicketAceptar,
     TicketCrear,
     TicketListItem,
@@ -166,19 +168,43 @@ async def obtener_ticket(
     return _a_response(ticket, ocultar_motivo=not es_tecnico)
 
 
-async def listar_tickets_cliente(
-    db: AsyncSession,
-    cliente_id: uuid.UUID,
-) -> list[TicketListItem]:
-    tickets = await repo.listar_por_cliente(db, cliente_id)
-    return [_a_list_item(t) for t in tickets]
-
-
 async def listar_tickets_tecnico(
     db: AsyncSession,
     estado: Optional[TicketEstado] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
+    garantia_vencida: Optional[bool] = None,
 ) -> list[TicketListItem]:
-    tickets = await repo.listar_todos(db, estado=estado)
+    tickets = await repo.listar_todos(
+        db,
+        estado=estado,
+        cliente_id=cliente_id,
+        tipo_dispositivo_id=tipo_dispositivo_id,
+        servicio_id=servicio_id,
+        fecha_desde=fecha_desde,
+        garantia_vencida=garantia_vencida,
+    )
+    return [_a_list_item(t) for t in tickets]
+
+
+async def listar_tickets_cliente(
+    db: AsyncSession,
+    cliente_id: uuid.UUID,
+    estado: Optional[TicketEstado] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
+) -> list[TicketListItem]:
+    tickets = await repo.listar_por_cliente(
+        db,
+        cliente_id=cliente_id,
+        estado=estado,
+        tipo_dispositivo_id=tipo_dispositivo_id,
+        servicio_id=servicio_id,
+        fecha_desde=fecha_desde,
+    )
     return [_a_list_item(t) for t in tickets]
 
 
@@ -234,6 +260,7 @@ async def rechazar_ticket(
     await publicar_evento_ticket("ticket.rechazado", {
         "ticket_id": str(ticket.ticket_id),
         "cliente_id": str(ticket.cliente_id),
+        "motivo_rechazo": ticket.motivo_rechazo,
     })
 
     return _a_response(ticket)
@@ -263,10 +290,9 @@ async def confirmar_entrega_tecnico(
 
     ticket = await repo.obtener_por_id(db, ticket_id)
 
-    await publicar_evento_ticket("ticket.finalizado", {
+    await publicar_evento_ticket("ticket.entrega_confirmada", {
         "ticket_id": str(ticket.ticket_id),
         "cliente_id": str(ticket.cliente_id),
-        "fecha_finalizacion": ticket.fecha_finalizacion.isoformat(),
     })
 
     return _a_response(ticket)
@@ -302,6 +328,13 @@ async def confirmar_recepcion_cliente(
     await db.commit()
 
     ticket = await repo.obtener_por_id(db, ticket_id)
+
+    await publicar_evento_ticket("ticket.finalizado", {
+        "ticket_id": str(ticket.ticket_id),
+        "cliente_id": str(ticket.cliente_id),
+        "fecha_finalizacion": ticket.fecha_finalizacion.isoformat(),
+    })
+
     return _a_response(ticket)
 
 
@@ -330,6 +363,7 @@ async def reabrir_por_garantia(
     await publicar_evento_ticket("ticket.reabierto", {
         "ticket_id": str(ticket.ticket_id),
         "cliente_id": str(ticket.cliente_id),
+        "tecnico_id": str(ticket.tecnico_id) if ticket.tecnico_id else None,
     })
 
     return _a_response(ticket)
@@ -338,7 +372,7 @@ async def reabrir_por_garantia(
 async def archivar_ticket(
     db: AsyncSession,
     ticket_id: uuid.UUID,
-) -> None:
+) -> dict:
     ticket = await repo.obtener_por_id(db, ticket_id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
@@ -350,3 +384,37 @@ async def archivar_ticket(
 
     await repo.archivar_ticket(db, ticket_id)
     await db.commit()
+
+    cliente = await ClienteRepository(db).get_by_id(ticket.cliente_id)
+    return {
+        "ticket_id": str(ticket_id),
+        "cliente_email": cliente.email if cliente else None,
+        "cliente_nombre": cliente.nombre if cliente else None,
+    }
+
+
+async def registrar_garantia(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    payload: GarantiaCreate,
+) -> dict:
+    ticket = await repo.obtener_por_id(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
+    if ticket.estado != TicketEstado.FINALIZADO:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se puede registrar garantía para tickets en estado 'Finalizado'.",
+        )
+
+    if not await repo.existe_garantia(db, ticket_id):
+        await repo.crear_garantia(db, ticket_id, payload.fecha_inicio, payload.fecha_vencimiento)
+        await db.commit()
+
+    cliente = await ClienteRepository(db).get_by_id(ticket.cliente_id)
+    return {
+        "ticket_id": str(ticket_id),
+        "cliente_email": cliente.email if cliente else None,
+        "cliente_nombre": cliente.nombre if cliente else None,
+        "fecha_vencimiento": payload.fecha_vencimiento.isoformat(),
+    }

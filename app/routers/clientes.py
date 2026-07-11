@@ -5,14 +5,14 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-EstadoTicket = Literal["CREADO", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO"]
+EstadoTicket = Literal["EN_REVISION", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO", "CANCELADO"]
 TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
 
-from app.database import get_db
+from app.core.database import get_db
 from app.schemas.cliente import ClienteListItem, ClienteProfile
 from app.services.cliente_service import ClienteService
-from app.utils.responses import success, error
-from app.utils.security import get_current_tecnico
+from app.core.responses import success, error
+from app.core.security import get_current_tecnico
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ router = APIRouter()
 async def list_clientes(
     tecnico_id: Annotated[uuid.UUID, Depends(get_current_tecnico)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    estado_ticket: Annotated[EstadoTicket | None, Query(description="Filtrar por estado de ticket (CREADO, EN_ESPERA_PAGO, EN_PROGRESO, FINALIZADO, RECHAZADO, ARCHIVADO)")] = None,
+    estado_ticket: Annotated[EstadoTicket | None, Query(description="Filtrar por estado de ticket (EN_REVISION, EN_ESPERA_PAGO, EN_PROGRESO, FINALIZADO, RECHAZADO, ARCHIVADO, CANCELADO)")] = None,
     distrito: Annotated[str | None, Query(description="Filtrar por distrito del cliente")] = None,
     fecha_desde: Annotated[datetime | None, Query(description="Filtrar clientes registrados desde esta fecha (ISO 8601)")] = None,
     tipo_ultimo_ticket: Annotated[TipoServicio | None, Query(description="Filtrar por tipo del último servicio (PREVENTIVO, CORRECTIVO, SUSCRIPCION_SOFTWARE)")] = None,

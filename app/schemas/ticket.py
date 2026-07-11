@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.ticket_model import TicketEstado
+from app.models.ticket import TicketEstado
 
 
 # Request
@@ -23,6 +23,11 @@ class TicketAceptar(BaseModel):
 
 class TicketRechazar(BaseModel):
     motivo_rechazo: str = Field(..., min_length=10, max_length=500)
+
+
+class GarantiaCreate(BaseModel):
+    fecha_inicio: datetime
+    fecha_vencimiento: datetime
 
 
 # Responses

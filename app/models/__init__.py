@@ -5,5 +5,6 @@ from app.models.dispositivo import Dispositivo
 from app.models.servicio import Servicio
 from app.models.ticket_model import Ticket
 from app.models.adjunto import Adjunto
+from app.models.garantia import Garantia
 
-__all__ = ["TipoDispositivo", "Tecnico", "Cliente", "Dispositivo", "Servicio", "Ticket", "Adjunto"]
+__all__ = ["TipoDispositivo", "Tecnico", "Cliente", "Dispositivo", "Servicio", "Ticket", "Adjunto","Garantia"]

@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.cliente import Cliente
 from app.models.dispositivo import Dispositivo
-from app.models.ticket_model import Ticket, ticket_dispositivo
+from app.models.ticket import Ticket, ticket_dispositivo
 from app.models.servicio import Servicio
 
 
@@ -165,7 +165,7 @@ class ClienteRepository:
             )
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_sor_none()
+        return result.scalar_one_or_none()
 
     async def get_tickets_por_dispositivos(
         self, dispositivo_ids: list[uuid.UUID]

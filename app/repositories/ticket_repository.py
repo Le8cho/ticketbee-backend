@@ -6,19 +6,21 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.ticket_model import Ticket, TicketDispositivo, TicketEstado
+from app.models.ticket import Ticket, TicketDispositivo, TicketEstado
+from app.models.dispositivo import Dispositivo
+from app.models.garantia import Garantia
 
 
 async def crear_ticket(
         db:AsyncSession,
-        client_id: uuid.UUID,
+        cliente_id: uuid.UUID,
         servicio_id: uuid.UUID,
         dispositivo_id: uuid.UUID,
         precio_base: float,
         descripcion: Optional[str],
 ) -> Ticket:
     ticket = Ticket(
-        client_id=client_id,
+        cliente_id=cliente_id,
         servicio_id=servicio_id,
         precio_base=precio_base,
         descripcion=descripcion,
@@ -49,30 +51,98 @@ async def obtener_por_id(
     return result.scalar_one_or_none()
 
 
-async def listar_por_cliente(
-        db: AsyncSession,
-        cliente_id: uuid.UUID,
+async def listar_todos(
+    db: AsyncSession,
+    estado: Optional[TicketEstado] = None,
+    cliente_id: Optional[uuid.UUID] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
+    garantia_vencida: Optional[bool] = None,
 ) -> list[Ticket]:
+    query = (
+        select(Ticket)
+        .options(selectinload(Ticket.dispositivos))
+        .order_by(Ticket.creado_en.desc())
+    )
+    if estado is not None:
+        query = query.where(Ticket.estado == estado)
+    if cliente_id is not None:
+        query = query.where(Ticket.cliente_id == cliente_id)
+    if servicio_id is not None:
+        query = query.where(Ticket.servicio_id == servicio_id)
+    if fecha_desde is not None:
+        query = query.where(Ticket.creado_en >= fecha_desde)
+    if tipo_dispositivo_id is not None:
+        query = query.join(
+            TicketDispositivo,
+            TicketDispositivo.ticket_id == Ticket.ticket_id,
+        ).join(
+            Dispositivo,
+            Dispositivo.dispositivo_id == TicketDispositivo.dispositivo_id,
+        ).where(Dispositivo.tipo_dispositivo_id == tipo_dispositivo_id)
+    if garantia_vencida:
+        query = query.join(
+            Garantia,
+            Garantia.ticket_id == Ticket.ticket_id,
+        ).where(
+            Ticket.estado == TicketEstado.FINALIZADO,
+            Garantia.fecha_vencimiento < datetime.now(timezone.utc),
+        )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def existe_garantia(db: AsyncSession, ticket_id: uuid.UUID) -> bool:
     result = await db.execute(
+        select(Garantia.garantia_id).where(Garantia.ticket_id == ticket_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def crear_garantia(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    fecha_inicio: datetime,
+    fecha_vencimiento: datetime,
+) -> None:
+    garantia = Garantia(
+        ticket_id=ticket_id,
+        fecha_inicio=fecha_inicio,
+        fecha_vencimiento=fecha_vencimiento,
+    )
+    db.add(garantia)
+    await db.flush()
+
+
+async def listar_por_cliente(
+    db: AsyncSession,
+    cliente_id: uuid.UUID,
+    estado: Optional[TicketEstado] = None,
+    tipo_dispositivo_id: Optional[int] = None,
+    servicio_id: Optional[uuid.UUID] = None,
+    fecha_desde: Optional[datetime] = None,
+) -> list[Ticket]:
+    query = (
         select(Ticket)
         .options(selectinload(Ticket.dispositivos))
         .where(Ticket.cliente_id == cliente_id)
         .order_by(Ticket.creado_en.desc())
     )
-    return list(result.scalars().all())
-
-
-async def listar_todos(
-        db: AsyncSession,
-        estado: Optional[TicketEstado] = None,
-) -> list[Ticket]:
-    query = (
-        select(Ticket)
-        .options(selectinload(Ticket.dispositivos))
-        .order_by(Ticket.creado_en.decs())
-    )
     if estado is not None:
         query = query.where(Ticket.estado == estado)
+    if servicio_id is not None:
+        query = query.where(Ticket.servicio_id == servicio_id)
+    if fecha_desde is not None:
+        query = query.where(Ticket.creado_en >= fecha_desde)
+    if tipo_dispositivo_id is not None:
+        query = query.join(
+            TicketDispositivo,
+            TicketDispositivo.ticket_id == Ticket.ticket_id,
+        ).join(
+            Dispositivo,
+            Dispositivo.dispositivo_id == TicketDispositivo.dispositivo_id,
+        ).where(Dispositivo.tipo_dispositivo_id == tipo_dispositivo_id)
     result = await db.execute(query)
     return list(result.scalars().all())
 

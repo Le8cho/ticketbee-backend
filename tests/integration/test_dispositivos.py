@@ -9,8 +9,8 @@ import uuid
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from main import app
-from app.utils.security import get_current_cliente
+from app.main import app
+from app.core.security import get_current_cliente
 
 CLIENTE_ID_TEST = uuid.UUID("00000000-0000-0000-0000-000000000099")
 
