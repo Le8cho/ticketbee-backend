@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.core.config import settings
 from app.infrastructure.blob_storage import (
     delete_blob,
     generate_sas_url,
@@ -12,7 +12,7 @@ from app.infrastructure.blob_storage import (
     validar_adjunto,
 )
 from app.models.adjunto import SubidoPor
-from app.models.ticket_model import Ticket, TicketEstado
+from app.models.ticket import Ticket, TicketEstado
 from app.repositories.adjunto_repository import AdjuntoRepository
 from app.schemas.adjunto import AdjuntoOut
 

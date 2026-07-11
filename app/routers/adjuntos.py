@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database import get_db
 from app.services.attachment_service import AttachmentService
-from app.utils.responses import success
-from app.utils.security import UsuarioActual, get_current_user_dev as get_current_user
+from app.core.responses import success
+from app.core.security import UsuarioActual, get_current_user_dev as get_current_user
 
 router = APIRouter()
 

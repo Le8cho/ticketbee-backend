@@ -9,7 +9,7 @@ from azure.storage.blob import (
 )
 from azure.storage.blob.aio import BlobServiceClient
 
-from app.config import settings
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
