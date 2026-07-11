@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.database import Base          # noqa: E402
 from app.config import settings        # noqa: E402
 from app.models import (               # noqa: E402, F401
-    cliente, dispositivo, pago, ticket_model, tipo_dispositivo,tecnico
+    cliente, dispositivo, pago, ticket_model, tipo_dispositivo, tecnico, adjunto
 )
 
 config = context.config
@@ -40,7 +40,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
-        version_table_schema="public",
+        version_table_schema="dbo",
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -51,7 +51,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         include_schemas=True,
-        version_table_schema="public",
+        version_table_schema="dbo",
     )
     with context.begin_transaction():
         context.run_migrations()
