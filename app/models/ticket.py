@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from app.models.cliente import Cliente
     from app.models.servicio import Servicio
 
-from app.database import Base
+from app.core.database import Base
 
 
 class TicketEstado(str, enum.Enum):
@@ -22,6 +22,7 @@ class TicketEstado(str, enum.Enum):
     FINALIZADO = "FINALIZADO"
     ARCHIVADO = "ARCHIVADO"
     RECHAZADO = "RECHAZADO"
+    CANCELADO = "CANCELADO"
 
 
 class TicketDispositivo(Base):
@@ -86,8 +87,10 @@ class Ticket(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
-    actualizado_en: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    actualizado_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default="SYSDATETIMEOFFSET()",
     )
     cliente: Mapped["Cliente"] = relationship(back_populates="tickets")
     servicio: Mapped["Servicio"] = relationship(back_populates="tickets")

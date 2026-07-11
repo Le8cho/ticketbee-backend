@@ -9,8 +9,8 @@ import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
-import app.database as db_module
-from app.config import settings
+import app.core.database as db_module
+from app.core.config import settings
 
 
 @pytest.fixture(scope="session", autouse=True)

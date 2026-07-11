@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.ticket_model import TicketEstado
+from app.models.ticket import TicketEstado
 
 
 # Request
