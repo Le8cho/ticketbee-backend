@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pasarela Real Sandbox - Mercado Pago</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .detalle-pedido {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 5px solid #00e676;
+            text-align: left;
+        }
+
+        .monto {
+            font-size: 28px;
+            color: #10b981;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        #wallet_container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>Tienda Virtual (Mercado Pago PoC)</h2>
+        <p style="color: #7f8c8d;">Entorno Sandbox</p>
+
+        <div class="detalle-pedido">
+            <p><strong>Producto:</strong> Reparación de Dispositivo</p>
+            <p><strong>Total a pagar:</strong></p>
+            <p class="monto">S/ 45.00</p>
+        </div>
+
+        <!-- Contenedor del Brick de Mercado Pago -->
+        <div id="wallet_container"></div>
+    </div>
+
+    <!-- SDK de Mercado Pago -->
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
+    <script>
+        // Token de tu front-end oficial (Public Key)
+        const mp = new MercadoPago('APP_USR-5fffee70-1c50-4f14-92e8-835001b3e103');
+        const bricksBuilder = mp.bricks();
+
+        mp.bricks().create("wallet", "wallet_container", {
+            initialization: {
+                preferenceId: "3423925276-a2a6e908-035e-4aef-815a-3104e5f5070d",
+            },
+            customization: {
+                texts: {
+                    valueProp: 'smart_option',
+                },
+            },
+        });
+    </script>
+</body>
+
+</html>

@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from app.core.config import settings
 from app.auth import router as auth_router
-from app.routers import clientes, dispositivos, catalogo, pagos, tickets, tecnicos, adjuntos
+from app.routers import clientes, dispositivos, catalogo, pagos, tickets, tecnicos, adjuntos, payments
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,7 +17,7 @@ app.include_router(adjuntos.router,         prefix="/api/v1/adjuntos",     tags=
 app.include_router(catalogo.router,         prefix="/api/v1/catalogo",     tags=["Catálogo"])
 app.include_router(pagos.router,            prefix="/api/v1/pagos",        tags=["Pagos"])
 app.include_router(tecnicos.router,         prefix="/api/v1/tecnicos",     tags=["Tecnicos"])
-
+app.include_router(payments.router)
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok"}
