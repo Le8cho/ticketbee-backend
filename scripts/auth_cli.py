@@ -2,13 +2,12 @@
 CLI interactivo de autenticación TechFix.
 Ejecutar: python scripts/auth_cli.py
 """
-import asyncio, sys, os, getpass
+import asyncio
+import sys
+import os
+import getpass
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import app.models.cliente
-import app.models.dispositivo
-import app.models.tecnico
-import app.models.tipo_dispositivo
 
 from app.database import AsyncSessionLocal
 from app.services.auth_service import (
@@ -34,7 +33,7 @@ def menu():
 
 
 async def registrar():
-    print(f"\n--- REGISTRO ---")
+    print("\n--- REGISTRO ---")
     nombre   = input("  Nombre completo : ").strip()
     email    = input("  Email           : ").strip()
     password = getpass.getpass("  Contrasena      : ")
@@ -46,7 +45,7 @@ async def registrar():
                                    password=password, distrito=distrito)
             res = await register_cliente(data, db)
             print(f"\n  OK: {res['mensaje']}")
-            print(f"\n  >>> Copia este token para verificar tu email:")
+            print("\n  >>> Copia este token para verificar tu email:")
             print(f"      {res['dev_token']}")
         except Exception as e:
             detail = getattr(e, 'detail', str(e))
@@ -54,7 +53,7 @@ async def registrar():
 
 
 async def verificar():
-    print(f"\n--- VERIFICAR EMAIL ---")
+    print("\n--- VERIFICAR EMAIL ---")
     token = input("  Pega el token de verificacion: ").strip()
 
     async with AsyncSessionLocal() as db:
@@ -66,7 +65,7 @@ async def verificar():
 
 
 async def iniciar_sesion():
-    print(f"\n--- LOGIN ---")
+    print("\n--- LOGIN ---")
     email    = input("  Email     : ").strip()
     password = getpass.getpass("  Contrasena: ")
 
@@ -74,15 +73,16 @@ async def iniciar_sesion():
         try:
             res = await login_cliente(ClienteLogin(email=email, password=password), db)
             print(f"\n  OK - rol: {res.rol}")
-            print(f"\n  Tu JWT (guardalo para usar /me):")
+            print("\n  Tu JWT (guardalo para usar /me):")
             print(f"  {res.access_token}")
         except Exception as e:
             print(f"\n  ERROR: {getattr(e, 'detail', str(e))}")
 
 
 async def ver_perfil():
-    print(f"\n--- MI PERFIL ---")
-    import jwt as pyjwt, uuid
+    print("\n--- MI PERFIL ---")
+    import jwt as pyjwt
+    import uuid
     from app.config import settings
     token = input("  Pega tu JWT: ").strip()
 
@@ -108,7 +108,7 @@ async def ver_perfil():
 
 
 async def reenviar():
-    print(f"\n--- REENVIAR VERIFICACION ---")
+    print("\n--- REENVIAR VERIFICACION ---")
     email = input("  Email: ").strip()
 
     async with AsyncSessionLocal() as db:

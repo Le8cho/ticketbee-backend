@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.models.ticket import Ticket, TicketEstado
-from app.models.pago import Pago, PagoEstado
 from app.models.pago import Pago, PagoEstado
 from app.models.cliente import Cliente
 from app.models.tecnico import Tecnico
@@ -20,15 +19,15 @@ from app.infrastructure.acs_email_local import enviar_email_acs
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
+router = APIRouter(prefix="/api/v1/payments")
 
 class PreferenceRequest(BaseModel):
     ticket_id: str
-    
+
 class PreferenceResponse(BaseModel):
     preference_id: str
 
-@router.post("/preference", response_model=PreferenceResponse)
+@router.post("/preference", response_model=PreferenceResponse, tags=["Payments-Publico"])
 async def generate_payment_preference(request: PreferenceRequest, db: AsyncSession = Depends(get_db)):
     """
     Genera un preference_id de Mercado Pago para inicializar el Checkout Pro (Brick).
@@ -66,7 +65,7 @@ async def generate_payment_preference(request: PreferenceRequest, db: AsyncSessi
         raise HTTPException(status_code=500, detail="Error interno al generar preferencia de pago")
 
 
-@router.post("/webhook", summary="Payment Listener Webhook (Mercado Pago)")
+@router.post("/webhook", summary="Payment Listener Webhook (Mercado Pago)", tags=["Payments-Webhook"])
 async def payment_listener_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
     === PAYMENT LISTENER (WEBHOOK) ===
@@ -88,7 +87,7 @@ async def payment_listener_webhook(request: Request, db: AsyncSession = Depends(
         body = {}
         try:
             body = await request.json()
-        except:
+        except Exception:
             pass
             
         action = body.get("action")

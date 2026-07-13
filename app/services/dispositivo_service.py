@@ -131,7 +131,7 @@ class DispositivoService:
         try:
             validar_imagen(data, content_type)
         except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
 
         dispositivo = await self.repo.get_by_id(dispositivo_id, cliente_id)
         if not dispositivo:

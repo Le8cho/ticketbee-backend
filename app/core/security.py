@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import jwt
 from jwt import PyJWKClient
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.core.config import settings
@@ -75,6 +75,11 @@ async def get_current_user(
 
 async def get_current_cliente(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    actuar_como_cliente_id: uuid.UUID | None = Query(
+        None,
+        description="Solo rol admin: cliente_id existente en cuyo nombre actuar. "
+                    "Obligatorio para admin en este endpoint, ignorado para los demás roles.",
+    ),
 ) -> uuid.UUID:
     if _debug_activo():
         return _DEBUG_CLIENTE_ID
@@ -82,16 +87,28 @@ async def get_current_cliente(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
     payload = _decode_token(credentials.credentials)
     usuario = _extraer_usuario(payload)
-    if usuario.rol != "cliente":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Se requiere rol cliente",
-        )
-    return usuario.user_id
+    if usuario.rol == "cliente":
+        return usuario.user_id
+    if usuario.rol == "admin":
+        if actuar_como_cliente_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El rol admin debe indicar 'actuar_como_cliente_id' (cliente_id existente).",
+            )
+        return actuar_como_cliente_id
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Se requiere rol cliente",
+    )
 
 
 async def get_current_tecnico(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    actuar_como_tecnico_id: uuid.UUID | None = Query(
+        None,
+        description="Solo rol admin: tecnico_id existente en cuyo nombre actuar. "
+                    "Obligatorio para admin en este endpoint, ignorado para los demás roles.",
+    ),
 ) -> uuid.UUID:
     if _debug_activo():
         return _DEBUG_TECNICO_ID
@@ -99,12 +116,19 @@ async def get_current_tecnico(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
     payload = _decode_token(credentials.credentials)
     usuario = _extraer_usuario(payload)
-    if usuario.rol != "tecnico":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Se requiere rol tecnico",
-        )
-    return usuario.user_id
+    if usuario.rol == "tecnico":
+        return usuario.user_id
+    if usuario.rol == "admin":
+        if actuar_como_tecnico_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El rol admin debe indicar 'actuar_como_tecnico_id' (tecnico_id existente).",
+            )
+        return actuar_como_tecnico_id
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Se requiere rol tecnico",
+    )
 
 
 get_current_user_dev = get_current_user

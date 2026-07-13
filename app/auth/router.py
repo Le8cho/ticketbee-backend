@@ -9,7 +9,7 @@ from app.auth import service as auth_service
 router = APIRouter()
 
 
-@router.get("/me", response_model=PerfilOut)
+@router.get("/me", response_model=PerfilOut, tags=["Auth-Compartido"])
 async def get_me(
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

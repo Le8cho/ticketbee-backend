@@ -1,5 +1,4 @@
 import logging
-import os
 from azure.communication.email import EmailClient
 from app.core.config import settings
 

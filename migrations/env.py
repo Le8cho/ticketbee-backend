@@ -2,9 +2,6 @@ import asyncio
 import os
 import sys
 from logging.config import fileConfig
-# Al inicio del archivo, agrega:
-from app.database import Base
-from app.models import dispositivo, cliente, pago, ticket_model  # importa todos los modelos
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -15,12 +12,13 @@ from alembic import context
 # Agrega raíz del proyecto al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Importar Base y TODOS los modelos para que Alembic los detecte
-from app.database import Base          # noqa: E402
-from app.config import settings        # noqa: E402
-from app.models import (               # noqa: E402, F401
-    cliente, dispositivo, pago, ticket_model, tipo_dispositivo, tecnico, adjunto
-)
+# Importar Base y TODOS los modelos para que Alembic los detecte.
+# app.models.__init__ ya importa Cliente, Dispositivo, Servicio, Ticket,
+# Adjunto, Garantia, TipoDispositivo y Tecnico; Pago no está en __all__
+# ahí, así que se importa aparte para que Alembic también lo detecte.
+from app.core.database import Base     # noqa: E402
+from app.core.config import settings   # noqa: E402
+from app.models import pago            # noqa: E402, F401
 
 config = context.config
 

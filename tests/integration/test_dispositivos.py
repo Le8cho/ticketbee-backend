@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
-from app.core.security import get_current_cliente
+from app.core.security import get_current_cliente, get_current_user, UsuarioActual
 
 CLIENTE_ID_TEST = uuid.UUID("00000000-0000-0000-0000-000000000099")
 
@@ -20,7 +20,21 @@ def mock_auth():
     return CLIENTE_ID_TEST
 
 
-app.dependency_overrides[get_current_cliente] = mock_auth
+def mock_auth_usuario():
+    """Idem, pero para endpoints que dependen de get_current_user (necesitan el rol)."""
+    return UsuarioActual(user_id=CLIENTE_ID_TEST, rol="cliente")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _override_auth():
+    """Scoped a este módulo: evita pisar los overrides de otros archivos de test
+    que comparten el mismo `app.dependency_overrides` (get_current_user_dev es
+    el mismo objeto que get_current_user)."""
+    app.dependency_overrides[get_current_cliente] = mock_auth
+    app.dependency_overrides[get_current_user] = mock_auth_usuario
+    yield
+    app.dependency_overrides.pop(get_current_cliente, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture

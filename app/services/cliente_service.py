@@ -82,7 +82,6 @@ class ClienteService:
             nombre=cliente.nombre,
             email=cliente.email,
             distrito=cliente.distrito,
-            # email_verificado=cliente.email_verificado,
             activo=cliente.activo,
             creado_en=cliente.creado_en,
             dispositivos=dispositivos,
