@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     AZURE_STORAGE_CONTAINER_DEVICES: str = ""
     AZURE_STORAGE_CONTAINER_TICKETS: str = ""
 
+    # Azure Communication Services
+    ACS_CONNECTION_STR: str = ""
+    ACS_FROM_ADDRESS: str = ""
+
+    # Mercado Pago
+    MERCADOPAGO_ACCESS_TOKEN: str = ""
     class Config:
         env_file = ".env"
         extra = "ignore"  # ignora variables del .env que no están en Settings

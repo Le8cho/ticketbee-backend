@@ -1,0 +1,1126 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║          TECHFIX — DIAGRAMAS DE SECUENCIA (Mermaid)                        ║
+║          Versión 1.0  |  Mayo 2025                                         ║
+║                                                                              ║
+║  Visor online recomendado: https://mermaid.live                             ║
+║  Cada diagrama está delimitado por ═══ y tiene su propio bloque ```mermaid  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-01 — REGISTRO DE CLIENTE
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-notify-ticket
+    participant ACS as Azure Communication Services
+
+    C->>FE: Accede a la URL del sistema
+    FE-->>C: Carga página de registro
+
+    C->>FE: Completa nombre, email, contraseña, distrito
+    FE->>FD: POST /auth/register
+    FD->>APIM: Reenvía (WAF OK)
+    Note over APIM: No requiere JWT (endpoint público)
+    APIM->>BE: POST /auth/register
+
+    BE->>DB: SELECT * FROM clientes WHERE email = ?
+    DB-->>BE: Sin resultados
+
+    BE->>DB: Valida distrito contra lista permitida
+    DB-->>BE: Distrito válido
+
+    BE->>DB: INSERT INTO clientes (estado: no verificado, token_verificacion generado)
+    DB-->>BE: OK
+
+    BE->>BUS: Publica topic/tickets {evento: REGISTRO, cliente_id}
+    BE-->>APIM: 201 Created
+    APIM-->>FD: 201
+    FD-->>FE: 201
+    FE-->>C: "Revisa tu email para verificar tu cuenta"
+
+    BUS-->>FN: Activa fn-notify-ticket
+    FN->>ACS: Envía email de verificación con enlace + token
+    ACS-->>C: Email con enlace de verificación
+
+    C->>FE: Hace clic en el enlace de verificación
+    FE->>FD: GET /auth/verify?token=...
+    FD->>APIM: Reenvía
+    APIM->>BE: GET /auth/verify?token=...
+
+    BE->>DB: SELECT cliente WHERE token_verificacion = ? AND token_expira_en > NOW()
+    DB-->>BE: Cliente encontrado
+
+    BE->>DB: UPDATE clientes SET email_verificado=true, token_verificacion=null
+    DB-->>BE: OK
+
+    BE-->>APIM: 200 OK
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: "Cuenta activada. Puedes iniciar sesión."
+
+    alt Token expirado
+        BE-->>APIM: 400 Token expirado
+        APIM-->>FD: 400
+        FD-->>FE: 400
+        FE-->>C: "El enlace expiró. ¿Reenviar verificación?"
+        C->>FE: Solicita nuevo enlace
+        FE->>FD: POST /auth/resend-verification
+        FD->>APIM: Reenvía
+        APIM->>BE: POST /auth/resend-verification
+        BE->>DB: UPDATE clientes SET token_verificacion=nuevo, token_expira_en=nuevo
+        DB-->>BE: OK
+        BE->>BUS: Publica evento REENVIO_VERIFICACION
+        BUS-->>FN: Activa fn-notify-ticket
+        FN->>ACS: Envía nuevo email de verificación
+        ACS-->>C: Nuevo email con enlace
+        BE-->>APIM: 200 OK
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>C: "Nuevo enlace enviado"
+    end
+
+    alt Email ya registrado
+        BE-->>APIM: 409 Conflict
+        APIM-->>FD: 409
+        FD-->>FE: 409
+        FE-->>C: "Este email ya está registrado"
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-02 — INICIO DE SESIÓN
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor U as Cliente / Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant KV as Key Vault
+    participant DB as PostgreSQL
+
+    U->>FE: Ingresa email y contraseña
+    FE->>FD: POST /auth/login
+    FD->>APIM: Reenvía (WAF OK)
+    Note over APIM: Endpoint público — no valida JWT
+    APIM->>BE: POST /auth/login {email, password}
+
+    BE->>DB: SELECT * FROM (tecnico | clientes) WHERE email = ?
+    DB-->>BE: Registro encontrado
+
+    BE->>BE: Verifica bcrypt(password) contra password_hash
+
+    BE->>KV: GET secret/jwt-secret (via Managed Identity)
+    KV-->>BE: JWT secret
+
+    BE->>BE: Genera JWT firmado {sub: user_id, role, exp: +20min}
+    BE-->>APIM: 200 OK {access_token: JWT}
+    APIM-->>FD: 200
+    FD-->>FE: 200 {access_token}
+    FE->>FE: Almacena JWT en memoria (no localStorage)
+    FE-->>U: Redirige al panel según rol
+
+    Note over FE,BE: Todas las requests siguientes incluyen<br/>Authorization: Bearer {JWT}
+
+    alt Credenciales incorrectas
+        BE-->>APIM: 401 Unauthorized
+        APIM-->>FD: 401
+        FD-->>FE: 401
+        FE-->>U: "Email o contraseña incorrectos"
+    end
+
+    alt Cuenta no verificada
+        BE-->>APIM: 403 Forbidden {detalle: "email no verificado"}
+        APIM-->>FD: 403
+        FD-->>FE: 403
+        FE-->>U: "Verifica tu email antes de iniciar sesión"
+    end
+
+    alt JWT expirado en requests posteriores
+        APIM->>APIM: Valida JWT → expirado
+        APIM-->>FD: 401
+        FD-->>FE: 401
+        FE->>FE: Elimina JWT de memoria
+        FE-->>U: Redirige a login
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-03 — REGISTRO Y CONSULTA DE DISPOSITIVOS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BLOB as Azure Blob Storage
+
+    Note over C,BLOB: Registrar dispositivo
+
+    C->>FE: Accede a "Mis dispositivos" → "Agregar dispositivo"
+    FE->>FD: GET /dispositivos/tipos
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /dispositivos/tipos
+    BE->>DB: SELECT * FROM tipo_dispositivo WHERE activo = true
+    DB-->>BE: Lista de tipos
+    BE-->>APIM: 200 [{tipo_dispositivo_id, nombre}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: Muestra formulario con selector de tipos
+
+    C->>FE: Completa marca, modelo, número de serie, tipo y foto opcional
+    FE->>FD: POST /dispositivos (multipart/form-data)
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: POST /dispositivos
+
+    BE->>DB: SELECT * FROM dispositivos WHERE cliente_id=? AND numero_serie=?
+    DB-->>BE: Sin resultados (número de serie único)
+
+    alt Con foto
+        BE->>BLOB: Upload imagen → genera URL blob
+        BLOB-->>BE: blob_url
+    end
+
+    BE->>DB: INSERT INTO dispositivos {cliente_id, tipo, marca, modelo, numero_serie, foto_url}
+    DB-->>BE: dispositivo_id
+
+    BE-->>APIM: 201 Created {dispositivo_id}
+    APIM-->>FD: 201
+    FD-->>FE: 201
+    FE-->>C: Dispositivo agregado al inventario
+
+    alt Número de serie duplicado
+        BE-->>APIM: 409 Conflict
+        APIM-->>FD: 409
+        FD-->>FE: 409
+        FE-->>C: "Ya tienes un dispositivo con ese número de serie"
+    end
+
+    alt Archivo no es imagen válida
+        BE-->>APIM: 422 Unprocessable Entity
+        APIM-->>FD: 422
+        FD-->>FE: 422
+        FE-->>C: "El archivo debe ser una imagen válida (jpg, png, webp)"
+    end
+
+    Note over C,BLOB: Consultar inventario
+
+    C->>FE: Accede a "Mis dispositivos"
+    FE->>FD: GET /dispositivos
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /dispositivos
+    BE->>DB: SELECT * FROM dispositivos WHERE cliente_id=? AND activo=true
+    DB-->>BE: Lista de dispositivos con estado ticket activo
+    BE-->>APIM: 200 [{dispositivo_id, marca, modelo, tipo, ultimo_ticket_estado}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: Muestra inventario con historial por dispositivo
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-04 — BORRADO LÓGICO AUTOMÁTICO DE DISPOSITIVOS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    participant AZ as Azure (Timer diario)
+    participant FN as fn-archivado-automatico
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+
+    Note over AZ,DB: Se ejecuta junto con el archivado.<br/>El backend evalúa dispositivos por antigüedad de tickets.
+
+    AZ->>FN: Timer diario (medianoche Lima)
+    FN->>BE: GET /dispositivos?ultimo_ticket_mayor_a=X_años
+
+    BE->>DB: SELECT d.dispositivo_id<br/>FROM dispositivos d<br/>LEFT JOIN tickets t ON t.dispositivo_id = d.dispositivo_id<br/>WHERE d.activo = true<br/>AND MAX(t.creado_en) < NOW() - INTERVAL 'X years'
+    DB-->>BE: Lista de dispositivos a inactivar
+
+    loop Por cada dispositivo
+        FN->>BE: PATCH /dispositivos/{id} {activo: false, inactivado_en: NOW()}
+        BE->>DB: UPDATE dispositivos SET activo=false, inactivado_en=NOW()
+        DB-->>BE: OK
+        BE-->>FN: 200 OK
+    end
+
+    Note over FN: Los dispositivos inactivos no aparecen<br/>en el inventario del cliente pero su<br/>historial de tickets se conserva.
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-05 — CREACIÓN DE TICKET
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-notify-ticket
+    participant ACS as Azure Communication Services
+
+    C->>FE: Accede a "Nuevo ticket"
+
+    FE->>FD: GET /dispositivos
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /dispositivos
+    BE->>DB: SELECT dispositivos activos del cliente
+    DB-->>BE: Lista de dispositivos
+    BE-->>APIM: 200 [{dispositivo_id, marca, modelo, tipo}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: Muestra selector de dispositivos
+
+    C->>FE: Selecciona uno o más dispositivos
+    FE->>FD: GET /catalogo?tipo_dispositivo_id={tipo}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /catalogo?tipo_dispositivo_id={tipo}
+    BE->>DB: SELECT s.* FROM servicios s<br/>JOIN servicio_tipo_dispositivo std ON std.servicio_id = s.servicio_id<br/>WHERE std.tipo_dispositivo_id = ? AND s.activo = true
+    DB-->>BE: Servicios disponibles para ese tipo
+    BE-->>APIM: 200 [{servicio_id, nombre, tipo_servicio, precio_base}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: Pre-llena formulario con nombre y precio base del servicio
+
+    C->>FE: Selecciona servicio, agrega descripción opcional
+    C->>FE: Presiona "Generar ticket"
+    FE->>FD: POST /tickets {dispositivo_ids[], servicio_id, descripcion}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: POST /tickets
+
+    BE->>DB: Valida que los dispositivos pertenecen al cliente
+    DB-->>BE: OK
+
+    BE->>DB: SELECT precio_base FROM servicios WHERE servicio_id = ?
+    DB-->>BE: precio_base (snapshot)
+
+    BE->>DB: INSERT INTO tickets {cliente_id, servicio_id, estado: CREADO, precio_base}
+    DB-->>BE: ticket_id
+
+    BE->>DB: INSERT INTO ticket_dispositivo {ticket_id, dispositivo_id} (por cada dispositivo)
+    DB-->>BE: OK
+
+    BE->>BUS: Publica topic/tickets {ticket_id, estado: CREADO, cliente_id}
+    BUS-->>FN: Activa fn-notify-ticket
+
+    BE-->>APIM: 201 Created {ticket_id}
+    APIM-->>FD: 201
+    FD-->>FE: 201
+    FE-->>C: "Tu ticket fue creado. Recibirás un email de confirmación."
+
+    FN->>ACS: Envía email al cliente {ticket creado, número de ticket}
+    ACS-->>C: Email de confirmación de ticket creado
+
+    alt Cliente sin dispositivos registrados
+        FE-->>C: "Debes registrar al menos un dispositivo antes de crear un ticket"
+        C->>FE: Navega a "Mis dispositivos" → "Agregar dispositivo"
+    end
+
+    alt Error de validación
+        BE-->>APIM: 422 Unprocessable Entity {campos con error}
+        APIM-->>FD: 422
+        FD-->>FE: 422
+        FE-->>C: Resalta campos con error en el formulario
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-06 — REVISIÓN Y APROBACIÓN DE TICKET POR EL TÉCNICO
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-notify-ticket
+    participant ACS as Azure Communication Services
+
+    T->>FE: Accede a su panel → filtra por estado CREADO
+    FE->>FD: GET /tickets?estado=CREADO
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /tickets?estado=CREADO
+    BE->>DB: SELECT tickets con estado CREADO con datos de cliente y dispositivos
+    DB-->>BE: Lista de tickets pendientes
+    BE-->>APIM: 200 [{ticket_id, cliente, dispositivos, servicio, precio_base, creado_en}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra lista de tickets pendientes
+
+    T->>FE: Selecciona un ticket para revisar
+    FE->>FD: GET /tickets/{id}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /tickets/{id}
+    BE->>DB: SELECT ticket + dispositivos + cliente + servicio
+    DB-->>BE: Detalle completo
+    BE-->>APIM: 200 {detalle del ticket}
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra detalle: dispositivos, servicio, descripción, precio base
+
+    alt Técnico aprueba (con o sin ajuste de precio)
+        T->>FE: Ajusta precio si aplica (descuento o cargo adicional)
+        T->>FE: Presiona "Aprobar"
+        FE->>FD: PATCH /tickets/{id} {estado: EN_ESPERA_PAGO, precio_final}
+        FD->>APIM: Reenvía + valida JWT
+        APIM->>BE: PATCH /tickets/{id}
+
+        BE->>DB: UPDATE tickets SET estado=EN_ESPERA_PAGO, precio_final=?, actualizado_en=NOW()
+        DB-->>BE: OK
+
+        BE->>BUS: Publica topic/tickets {ticket_id, estado: EN_ESPERA_PAGO, monto: precio_final, cliente_id}
+        BUS-->>FN: Activa fn-notify-ticket
+
+        BE-->>APIM: 200 OK
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>T: Ticket actualizado a "En espera de pago"
+
+        FN->>ACS: Envía email al cliente {ticket aprobado, monto a pagar: precio_final}
+        ACS-->>C: Email con monto a pagar
+    end
+
+    alt Técnico rechaza (ver SD-07)
+        T->>FE: Presiona "Rechazar"
+        Note over T,FE: Ver SD-07 — Rechazo de ticket
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-07 — RECHAZO DE TICKET
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-notify-ticket
+    participant ACS as Azure Communication Services
+
+    T->>FE: Revisa el ticket y decide rechazarlo
+    T->>FE: Ingresa motivo del rechazo
+    T->>FE: Confirma rechazo
+
+    FE->>FD: PATCH /tickets/{id} {estado: RECHAZADO, motivo_rechazo: "..."}
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: PATCH /tickets/{id}
+
+    BE->>DB: UPDATE tickets SET estado=RECHAZADO, motivo_rechazo=?, actualizado_en=NOW()
+    DB-->>BE: OK
+
+    BE->>BUS: Publica topic/tickets {ticket_id, estado: RECHAZADO, motivo_rechazo, cliente_id}
+    BUS-->>FN: Activa fn-notify-ticket
+
+    BE-->>APIM: 200 OK
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Ticket marcado como rechazado en el panel del técnico
+
+    FN->>ACS: Envía email al cliente {ticket no pudo ser atendido, motivo}
+    ACS-->>C: Email con motivo del rechazo
+
+    Note over C,FE: El cliente NO ve el estado "RECHAZADO"<br/>en la interfaz. Solo recibe el email.
+    Note over T,FE: El técnico sí ve el estado RECHAZADO<br/>y el motivo en su panel.
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-08 — PAGO POR YAPE (CULQI WEBHOOK)
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor C as Cliente
+    participant YAPE as Yape (app del cliente)
+    participant CULQI as Culqi (pasarela)
+    participant PL as Payment Listener (Container App)
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-pago-confirmado
+    participant FN2 as fn-notify-ticket
+    participant ACS as Azure Communication Services
+    actor T as Técnico
+
+    Note over C,CULQI: El cliente ya recibió email con el monto a pagar
+
+    C->>YAPE: Realiza pago por Yape al número del técnico
+    YAPE->>CULQI: Notifica transacción {monto, referencia}
+    CULQI->>PL: POST /webhook/culqi {charge_id, monto_recibido, ticket_id, referencia}
+
+    Note over PL: El Payment Listener NO accede a la BD.<br/>Valida siempre a través del backend.
+
+    PL->>BE: GET /tickets/{ticket_id}/monto-esperado
+    BE->>DB: SELECT precio_final FROM tickets WHERE ticket_id = ?
+    DB-->>BE: precio_final
+    BE-->>PL: 200 {monto_esperado: precio_final}
+
+    PL->>PL: Compara monto_recibido con monto_esperado
+
+    alt Montos coinciden (pago completo)
+        PL->>BUS: Publica topic/pagos {ticket_id, resultado: CONFIRMADO, monto, referencia_culqi}
+        PL-->>CULQI: 200 OK (acknowledge webhook)
+
+        BUS-->>FN: Activa fn-pago-confirmado
+
+        FN->>BE: PATCH /tickets/{ticket_id} {estado: EN_PROGRESO}
+        BE->>DB: UPDATE tickets SET estado=EN_PROGRESO, actualizado_en=NOW()
+        DB-->>BE: OK
+
+        BE->>DB: INSERT INTO pagos {ticket_id, monto, monto_esperado, referencia_culqi, estado: CONFIRMADO}
+        DB-->>BE: OK
+
+        BE->>BUS: Publica topic/tickets {ticket_id, estado: EN_PROGRESO, cliente_id}
+        BE-->>FN: 200 OK
+
+        FN->>ACS: Envía email a cliente {pago confirmado, ticket en progreso}
+        FN->>ACS: Envía email a técnico {pago recibido, puede iniciar trabajo}
+        ACS-->>C: Email de confirmación de pago
+        ACS-->>T: Email de notificación de pago
+
+        BUS-->>FN2: Activa fn-notify-ticket (por evento EN_PROGRESO)
+        FN2->>ACS: Envía email adicional al técnico {ticket listo para iniciar}
+        ACS-->>T: Email recordatorio de inicio
+    end
+
+    alt Montos NO coinciden (pago parcial)
+        PL->>BE: POST /pagos/parciales {ticket_id, monto_recibido, monto_esperado, referencia_culqi}
+        BE->>DB: INSERT INTO pagos_parciales {ticket_id, monto_recibido, monto_esperado, referencia_culqi, estado: PENDIENTE}
+        DB-->>BE: OK
+        BE-->>PL: 201 Created
+        PL-->>CULQI: 200 OK (acknowledge webhook)
+
+        Note over DB,T: El ticket permanece en EN_ESPERA_PAGO.<br/>El técnico verá el pago parcial en su panel.
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-09 — GESTIÓN DE PAGO PARCIAL (REVISIÓN MANUAL)
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+
+    T->>FE: Accede a sección "Pagos" → "Pagos parciales pendientes"
+    FE->>FD: GET /pagos?estado=PENDIENTE
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /pagos?estado=PENDIENTE
+    BE->>DB: SELECT * FROM pagos_parciales WHERE estado=PENDIENTE
+    DB-->>BE: Lista de pagos parciales con monto_recibido vs monto_esperado
+    BE-->>APIM: 200 [{pago_parcial_id, ticket_id, monto_recibido, monto_esperado, referencia_culqi}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra tabla de pagos con discrepancias
+
+    T->>FE: Selecciona un pago parcial para resolver
+    T->>FE: Ingresa notas y elige acción (confirmar o solicitar remanente)
+
+    alt Técnico decide confirmar (absorbe diferencia)
+        FE->>FD: PATCH /pagos/parciales/{id} {estado: RESUELTO, notas_tecnico}
+        FD->>APIM: Reenvía + valida JWT
+        APIM->>BE: PATCH /pagos/parciales/{id}
+        BE->>DB: UPDATE pagos_parciales SET estado=RESUELTO, notas_tecnico=?, resuelto_en=NOW()
+        DB-->>BE: OK
+        BE->>DB: UPDATE tickets SET estado=EN_PROGRESO WHERE ticket_id=?
+        DB-->>BE: OK
+        BE-->>APIM: 200 OK
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>T: "Pago resuelto. Ticket en progreso."
+    end
+
+    alt Técnico solicita remanente al cliente
+        Note over T,C: El técnico contacta al cliente por email<br/>o le informa manualmente el monto faltante.
+        Note over T,C: El cliente realiza un segundo pago por Yape.<br/>Culqi enviará un nuevo webhook (SD-08).
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-10 — EJECUCIÓN DEL SERVICIO Y ADJUNTOS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BLOB as Azure Blob Storage
+
+    Note over T,BLOB: El ticket está en estado EN_PROGRESO
+
+    T->>FE: Accede al detalle del ticket
+    FE->>FD: GET /tickets/{id}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /tickets/{id}
+    BE->>DB: SELECT ticket + dispositivos + adjuntos + cliente
+    DB-->>BE: Detalle completo
+    BE-->>APIM: 200 {detalle}
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra detalle del ticket con sección de adjuntos
+
+    T->>FE: Selecciona "Adjuntar archivos" y sube fotos/comprobantes
+    FE->>FD: POST /tickets/{id}/adjuntos (multipart/form-data)
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: POST /tickets/{id}/adjuntos
+
+    BE->>BE: Valida tipo MIME y tamaño del archivo
+
+    BE->>BLOB: Upload archivo → contenedor del ticket
+    BLOB-->>BE: blob_url
+
+    BE->>DB: INSERT INTO adjuntos {ticket_id, nombre, tipo_mime, tamanio_bytes, blob_url, subido_por: TECNICO}
+    DB-->>BE: adjunto_id
+
+    BE-->>APIM: 201 Created {adjunto_id, blob_url}
+    APIM-->>FD: 201
+    FD-->>FE: 201
+    FE-->>T: Archivo aparece en la lista de adjuntos del ticket
+
+    Note over FE,BLOB: El frontend obtiene una URL firmada (SAS token)<br/>para mostrar/descargar el archivo. Nunca expone el blob directo.
+
+    alt Archivo supera tamaño máximo configurado
+        BE-->>APIM: 413 Payload Too Large
+        APIM-->>FD: 413
+        FD-->>FE: 413
+        FE-->>T: "El archivo supera el tamaño máximo permitido"
+    end
+
+    alt Tipo MIME no permitido
+        BE-->>APIM: 422 Unprocessable Entity
+        APIM-->>FD: 422
+        FD-->>FE: 422
+        FE-->>T: "Tipo de archivo no permitido"
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-11 — FINALIZACIÓN DE TICKET
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor TC as Técnico o Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN1 as fn-notify-ticket
+    participant FN2 as fn-garantia
+    participant ACS as Azure Communication Services
+
+    Note over TC,ACS: Cualquiera de los dos actores puede marcar el ticket como Finalizado
+
+    TC->>FE: Accede al detalle del ticket → presiona "Finalizar"
+    FE->>FD: PATCH /tickets/{id} {estado: FINALIZADO}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: PATCH /tickets/{id}
+
+    BE->>DB: UPDATE tickets SET estado=FINALIZADO, fecha_finalizacion=NOW(), actualizado_en=NOW()
+    DB-->>BE: OK
+
+    BE->>BUS: Publica topic/tickets {ticket_id, estado: FINALIZADO, fecha_finalizacion, cliente_id}
+
+    BE-->>APIM: 200 OK
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>TC: Ticket marcado como Finalizado
+
+    par Notificaciones de finalización
+        BUS-->>FN1: Activa fn-notify-ticket
+        FN1->>ACS: Envía email a cliente {ticket finalizado, gracias}
+        FN1->>ACS: Envía email a técnico {ticket finalizado}
+        ACS-->>C: Email de finalización
+        ACS-->>T: Email de finalización
+    and Cálculo de garantía
+        BUS-->>FN2: Activa fn-garantia (filtra solo estado=FINALIZADO)
+        FN2->>BE: POST /tickets/{id}/garantia {fecha_vencimiento: fecha_finalizacion + X días}
+        BE->>DB: INSERT INTO garantias {ticket_id, fecha_inicio: fecha_finalizacion, fecha_vencimiento}
+        DB-->>BE: garantia_id
+        BE-->>FN2: 201 Created {garantia_id}
+    end
+
+    Note over DB: La garantía queda registrada.<br/>fn-archivado-automatico evaluará<br/>este ticket en su timer diario.
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-12 — REINGRESO POR INCIDENTE EN GARANTÍA
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor C as Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN as fn-notify-ticket
+    participant ACS as Azure Communication Services
+    actor T as Técnico
+
+    Note over C,T: El ticket está en estado FINALIZADO<br/>y la garantía NO ha vencido
+
+    C->>FE: Accede a "Mis tickets" → detalle del ticket
+    FE->>FD: GET /tickets/{id}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /tickets/{id}
+    BE->>DB: SELECT ticket + garantia
+    DB-->>BE: {estado: FINALIZADO, garantia: {fecha_vencimiento}}
+    BE-->>APIM: 200
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: Muestra botón "Reportar incidente" (visible si garantía vigente)
+
+    C->>FE: Presiona "Reportar incidente"
+    FE->>FD: PATCH /tickets/{id} {estado: EN_PROGRESO}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: PATCH /tickets/{id}
+
+    BE->>DB: SELECT fecha_vencimiento FROM garantias WHERE ticket_id = ?
+    DB-->>BE: fecha_vencimiento
+
+    BE->>BE: Verifica que NOW() < fecha_vencimiento
+
+    BE->>DB: UPDATE tickets SET estado=EN_PROGRESO, actualizado_en=NOW()
+    DB-->>BE: OK
+
+    BE->>BUS: Publica topic/tickets {ticket_id, estado: EN_PROGRESO, origen: GARANTIA, cliente_id}
+    BUS-->>FN: Activa fn-notify-ticket
+
+    BE-->>APIM: 200 OK
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>C: "Tu incidente fue reportado. El técnico se pondrá en contacto."
+
+    FN->>ACS: Envía email al técnico {ticket reabierto por garantía, datos del cliente}
+    ACS-->>T: Email de reingreso por garantía
+
+    Note over T,C: El ticket continúa desde SD-10<br/>(ejecución y adjuntos) → SD-11 (finalización)
+
+    alt Garantía ya vencida
+        BE-->>APIM: 409 Conflict {detalle: "garantía vencida"}
+        APIM-->>FD: 409
+        FD-->>FE: 409
+        FE-->>C: "La garantía de este ticket ya venció. Crea un nuevo ticket."
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-13 — ARCHIVADO AUTOMÁTICO DE TICKETS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    participant AZ as Azure (Timer diario)
+    participant FN as fn-archivado-automatico
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BUS as Service Bus
+    participant FN2 as fn-notify-ticket
+    participant ACS as Azure Communication Services
+    actor C as Cliente
+
+    Note over AZ,C: Se ejecuta diariamente a medianoche (hora de Lima).<br/>No escucha Service Bus — se activa exclusivamente por timer.
+
+    AZ->>FN: Timer trigger (cron diario)
+
+    FN->>BE: GET /tickets?garantia_vencida=true
+    BE->>DB: SELECT t.ticket_id, t.cliente_id<br/>FROM tickets t<br/>JOIN garantias g ON g.ticket_id = t.ticket_id<br/>WHERE t.estado = 'FINALIZADO'<br/>AND g.fecha_vencimiento < NOW()
+    DB-->>BE: Lista de tickets elegibles para archivar
+    BE-->>FN: 200 [{ticket_id, cliente_id}]
+
+    alt Sin tickets elegibles
+        FN->>FN: Log "Sin tickets para archivar" en Application Insights
+    end
+
+    loop Por cada ticket elegible
+        FN->>BE: PATCH /tickets/{ticket_id} {estado: ARCHIVADO}
+        BE->>DB: UPDATE tickets SET estado=ARCHIVADO, actualizado_en=NOW()
+        DB-->>BE: OK
+
+        BE->>BUS: Publica topic/tickets {ticket_id, estado: ARCHIVADO, cliente_id}
+        BE-->>FN: 200 OK
+
+        BUS-->>FN2: Activa fn-notify-ticket
+
+        FN2->>ACS: Envía email al cliente {ticket archivado, garantía concluida}
+        ACS-->>C: Email informando fin de garantía y archivado
+    end
+
+    Note over FN: fn-archivado-automatico también puede<br/>disparar el borrado lógico de dispositivos<br/>en la misma ejecución (ver SD-04)
+
+    alt Fallo en la ejecución
+        FN->>FN: Registra error en Application Insights
+        Note over FN: Azure reintentará la ejecución al día siguiente<br/>por el timer. Los tickets pendientes se<br/>acumularán sin perderse.
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-14 — GENERACIÓN DE COMPROBANTE PDF
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BLOB as Azure Blob Storage
+
+    Note over T,BLOB: El ticket debe estar en estado FINALIZADO
+
+    T->>FE: Accede al detalle del ticket → presiona "Generar comprobante"
+    FE->>FD: POST /tickets/{id}/comprobante
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: POST /tickets/{id}/comprobante
+
+    BE->>DB: SELECT ticket + cliente + dispositivos + servicio + pago + garantia
+    DB-->>BE: Datos completos del ticket
+
+    BE->>BE: Genera PDF con:<br/>- Datos del cliente<br/>- Dispositivo(s) atendido(s)<br/>- Servicio realizado<br/>- Monto pagado<br/>- Fecha de finalización<br/>- Período de garantía
+
+    BE->>BLOB: Upload PDF → contenedor de comprobantes
+    BLOB-->>BE: blob_url
+
+    BE->>DB: INSERT INTO comprobantes {ticket_id, blob_url, generado_por: tecnico_id, generado_en: NOW()}
+    DB-->>BE: comprobante_id
+
+    BE-->>APIM: 201 Created {comprobante_id, download_url (SAS token)}
+    APIM-->>FD: 201
+    FD-->>FE: 201 {download_url}
+    FE-->>T: Muestra botón de descarga directa del PDF
+
+    alt Error al generar PDF
+        BE-->>APIM: 500 Internal Server Error
+        APIM-->>FD: 500
+        FD-->>FE: 500
+        FE-->>T: "Error al generar el comprobante. Intenta nuevamente."
+        Note over BE: El error se registra en Application Insights.<br/>No se crea registro en la tabla comprobantes.
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-15 — CONSULTA DE COMPROBANTES (TÉCNICO Y CLIENTE)
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor U as Técnico / Cliente
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+    participant BLOB as Azure Blob Storage
+
+    alt Vista Técnico
+        U->>FE: Accede a "Reportes" → "Historial de comprobantes"
+        FE->>FD: GET /comprobantes?cliente_id=&fecha_desde=&ticket_id=
+        FD->>APIM: Reenvía + valida JWT (rol: técnico)
+        APIM->>BE: GET /comprobantes (sin filtro de cliente — ve todos)
+        BE->>DB: SELECT * FROM comprobantes JOIN tickets JOIN clientes (con filtros opcionales)
+        DB-->>BE: Lista completa de comprobantes
+        BE-->>APIM: 200 [{comprobante_id, ticket_id, cliente, generado_en, download_url}]
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>U: Muestra tabla con todos los comprobantes y filtros
+    end
+
+    alt Vista Cliente
+        U->>FE: Accede a "Mis comprobantes" o al detalle de un ticket finalizado
+        FE->>FD: GET /comprobantes (el JWT identifica al cliente)
+        FD->>APIM: Reenvía + valida JWT (rol: cliente)
+        APIM->>BE: GET /comprobantes
+        BE->>BE: Extrae cliente_id del JWT — filtra automáticamente
+        BE->>DB: SELECT * FROM comprobantes WHERE cliente_id = {del JWT}
+        DB-->>BE: Solo comprobantes del cliente autenticado
+        BE-->>APIM: 200 [{comprobante_id, ticket_id, generado_en, download_url}]
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>U: Muestra solo sus comprobantes
+    end
+
+    U->>FE: Presiona "Descargar" en un comprobante
+    FE->>FD: GET /comprobantes/{id}/download
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /comprobantes/{id}/download
+    BE->>DB: SELECT blob_url FROM comprobantes WHERE comprobante_id = ?
+    DB-->>BE: blob_url
+    BE->>BLOB: Genera SAS token temporal para el blob
+    BLOB-->>BE: URL firmada con expiración
+    BE-->>APIM: 302 Redirect → URL firmada
+    APIM-->>FD: 302
+    FD-->>FE: 302
+    FE->>BLOB: GET URL firmada → descarga el PDF
+    BLOB-->>U: Archivo PDF
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-16 — PANEL DEL TÉCNICO: GESTIÓN DE TICKETS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+
+    T->>FE: Accede a su panel principal
+    FE->>FD: GET /tickets (sin filtros — carga inicial)
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /tickets
+    BE->>DB: SELECT tickets con todos los estados + datos de cliente
+    DB-->>BE: Lista completa de tickets
+    BE-->>APIM: 200 [{ticket_id, cliente, estado, servicio, precio_final, creado_en, actualizado_en}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra panel con tickets agrupados por estado (kanban o lista)
+
+    T->>FE: Aplica filtros: estado, cliente, fecha
+    FE->>FD: GET /tickets?estado=EN_PROGRESO&cliente_id=&fecha_desde=
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /tickets?estado=EN_PROGRESO&...
+    BE->>DB: SELECT tickets WHERE estado=? AND cliente_id=? AND creado_en >= ?
+    DB-->>BE: Lista filtrada
+    BE-->>APIM: 200 [{...}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Actualiza la vista con tickets filtrados
+
+    T->>FE: Abre el detalle de un ticket
+    FE->>FD: GET /tickets/{id}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /tickets/{id}
+    BE->>DB: SELECT ticket + dispositivos + adjuntos + pagos + garantia + comprobantes
+    DB-->>BE: Detalle completo
+    BE-->>APIM: 200 {detalle}
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Vista completa del ticket con todas las acciones disponibles según estado
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-17 — PANEL DEL TÉCNICO: GESTIÓN DE CLIENTES Y DISPOSITIVOS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+
+    Note over T,DB: Listado de clientes con filtros
+
+    T->>FE: Accede a "Clientes"
+    FE->>FD: GET /clientes
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /clientes
+    BE->>DB: SELECT clientes con conteo de tickets activos y estado del último ticket
+    DB-->>BE: Lista de clientes
+    BE-->>APIM: 200 [{cliente_id, nombre, email, distrito, tickets_activos, ultimo_ticket_estado}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra listado de clientes
+
+    T->>FE: Aplica filtros (estado ticket, distrito, fecha registro, tipo último ticket)
+    FE->>FD: GET /clientes?estado_ticket=EN_PROGRESO&distrito=Miraflores&...
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /clientes?...
+    BE->>DB: SELECT clientes con filtros aplicados
+    DB-->>BE: Lista filtrada
+    BE-->>APIM: 200 [{...}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra clientes filtrados
+
+    T->>FE: Selecciona un cliente
+    FE->>FD: GET /clientes/{id}
+    FD->>APIM: Reenvía + valida JWT
+    APIM->>BE: GET /clientes/{id}
+    BE->>DB: SELECT cliente + dispositivos + historial tickets agrupado por dispositivo
+    DB-->>BE: Perfil completo del cliente
+    BE-->>APIM: 200 {datos_contacto, dispositivos: [{dispositivo, tickets[]}]}
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Vista de perfil del cliente con dispositivos y tickets asociados
+
+    Note over T,DB: Listado global de dispositivos
+
+    T->>FE: Accede a "Dispositivos"
+    FE->>FD: GET /dispositivos/global
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /dispositivos/global
+    BE->>DB: SELECT dispositivos de todos los clientes + cliente dueño + estado ticket activo
+    DB-->>BE: Lista global
+    BE-->>APIM: 200 [{dispositivo_id, tipo, marca, modelo, cliente, estado_ticket_activo}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra tabla global de dispositivos con navegación a cliente y ticket
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+SD-18 — ADMINISTRACIÓN DEL CATÁLOGO DE SERVICIOS
+════════════════════════════════════════════════════════════════════════════════
+
+```mermaid
+sequenceDiagram
+    actor T as Técnico
+    participant FE as React (Static Web App)
+    participant FD as Front Door + WAF
+    participant APIM as API Management
+    participant BE as Backend FastAPI
+    participant DB as PostgreSQL
+
+    T->>FE: Accede a "Catálogo de servicios"
+    FE->>FD: GET /catalogo/admin
+    FD->>APIM: Reenvía + valida JWT (rol: técnico)
+    APIM->>BE: GET /catalogo/admin
+    BE->>DB: SELECT servicios con tipos_dispositivo asociados (activos e inactivos)
+    DB-->>BE: Lista completa del catálogo
+    BE-->>APIM: 200 [{servicio_id, nombre, tipo_servicio, precio_base, tipos_dispositivo[], activo}]
+    APIM-->>FD: 200
+    FD-->>FE: 200
+    FE-->>T: Muestra catálogo con opciones de editar / desactivar
+
+    alt Crear nuevo servicio
+        T->>FE: Presiona "Nuevo servicio"
+        T->>FE: Completa nombre, descripción, tipo_servicio, precio_base, tipos_dispositivo aplicables
+        FE->>FD: POST /catalogo {nombre, tipo_servicio, precio_base, tipo_dispositivo_ids[]}
+        FD->>APIM: Reenvía + valida JWT
+        APIM->>BE: POST /catalogo
+        BE->>DB: INSERT INTO servicios {nombre, tipo_servicio, precio_base, activo: true}
+        DB-->>BE: servicio_id
+        BE->>DB: INSERT INTO servicio_tipo_dispositivo (por cada tipo seleccionado)
+        DB-->>BE: OK
+        BE-->>APIM: 201 Created {servicio_id}
+        APIM-->>FD: 201
+        FD-->>FE: 201
+        FE-->>T: Servicio agregado al catálogo
+    end
+
+    alt Editar servicio existente
+        T->>FE: Selecciona servicio → modifica campos
+        FE->>FD: PUT /catalogo/{servicio_id} {nombre, precio_base, tipo_dispositivo_ids[]}
+        FD->>APIM: Reenvía + valida JWT
+        APIM->>BE: PUT /catalogo/{servicio_id}
+        BE->>DB: UPDATE servicios SET nombre=?, precio_base=?, actualizado_en=NOW()
+        DB-->>BE: OK
+        BE->>DB: DELETE FROM servicio_tipo_dispositivo WHERE servicio_id=?
+        BE->>DB: INSERT INTO servicio_tipo_dispositivo (nueva lista de tipos)
+        DB-->>BE: OK
+        BE-->>APIM: 200 OK
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>T: Servicio actualizado
+        Note over BE,DB: Los tickets existentes no se ven afectados<br/>porque guardan un snapshot del precio.
+    end
+
+    alt Desactivar servicio
+        T->>FE: Presiona "Desactivar" en un servicio
+        FE->>FD: PATCH /catalogo/{servicio_id} {activo: false}
+        FD->>APIM: Reenvía + valida JWT
+        APIM->>BE: PATCH /catalogo/{servicio_id}
+        BE->>DB: UPDATE servicios SET activo=false, actualizado_en=NOW()
+        DB-->>BE: OK
+        BE-->>APIM: 200 OK
+        APIM-->>FD: 200
+        FD-->>FE: 200
+        FE-->>T: Servicio desactivado (no aparece en nuevos tickets)
+        Note over BE,DB: Los tickets históricos con este servicio<br/>conservan su referencia intacta.
+    end
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+RESUMEN DE DIAGRAMAS
+════════════════════════════════════════════════════════════════════════════════
+
+  SD-01  Registro de cliente
+  SD-02  Inicio de sesión
+  SD-03  Registro y consulta de dispositivos
+  SD-04  Borrado lógico automático de dispositivos
+  SD-05  Creación de ticket
+  SD-06  Revisión y aprobación de ticket por el técnico
+  SD-07  Rechazo de ticket
+  SD-08  Pago por Yape (Culqi webhook)
+  SD-09  Gestión de pago parcial (revisión manual)
+  SD-10  Ejecución del servicio y adjuntos
+  SD-11  Finalización de ticket
+  SD-12  Reingreso por incidente en garantía
+  SD-13  Archivado automático de tickets
+  SD-14  Generación de comprobante PDF
+  SD-15  Consulta de comprobantes (técnico y cliente)
+  SD-16  Panel del técnico: gestión de tickets
+  SD-17  Panel del técnico: gestión de clientes y dispositivos
+  SD-18  Administración del catálogo de servicios
+
+  Total: 18 diagramas de secuencia
+
+  Visor online: https://mermaid.live
+  Pega cada bloque ```mermaid ... ``` en el editor del visor.
