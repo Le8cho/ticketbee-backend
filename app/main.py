@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.auth import router as auth_router
 from app.routers import clientes, dispositivos, catalogo, pagos, tickets, tecnicos, adjuntos, payments
@@ -8,6 +9,14 @@ from app.routers import clientes, dispositivos, catalogo, pagos, tickets, tecnic
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="TechFix API", version="1.0.0", debug=settings.DEBUG_MODE)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Los tags de agrupación en Swagger se definen por endpoint (no aquí) con el
 # esquema "<Módulo>-<Rol>": Cliente, Tecnico, Compartido o Publico. Así se ve
@@ -17,7 +26,7 @@ app.include_router(clientes.router,         prefix="/api/v1/clientes")
 app.include_router(tickets.router,          prefix="/api/v1/tickets")
 app.include_router(dispositivos.router,     prefix="/api/v1/dispositivos")
 app.include_router(adjuntos.router,         prefix="/api/v1/adjuntos")
-app.include_router(catalogo.router,         prefix="/api/v1/catalogo",     tags=["Catálogo"])
+app.include_router(catalogo.router,         prefix="/api/v1/catalogo")
 app.include_router(pagos.router,            prefix="/api/v1/pagos",        tags=["Pagos"])
 app.include_router(tecnicos.router,         prefix="/api/v1/tecnicos")
 app.include_router(payments.router)

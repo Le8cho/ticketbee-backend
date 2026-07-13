@@ -29,6 +29,13 @@ class ClienteRepository:
         )
         return result.scalar_one_or_none()
 
+    async def create(self, **data) -> Cliente:
+        cliente = Cliente(**data)
+        self.db.add(cliente)
+        await self.db.commit()
+        await self.db.refresh(cliente)
+        return cliente
+
     # ── Gestión de clientes — SD-17 ─────────────────────────────────────────
 
     _ESTADOS_ACTIVOS = ("CREADO", "EN_ESPERA_PAGO", "EN_PROGRESO")

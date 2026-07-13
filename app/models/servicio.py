@@ -1,7 +1,4 @@
-"""
-Modelo Servicio (catálogo) — responsable del catálogo completa este archivo.
-Stub mínimo definido por Persona 4 para mostrar nombre del servicio en el historial.
-"""
+"""Modelo Servicio (catálogo de servicios ofrecidos)."""
 import uuid
 from sqlalchemy import Enum as SAEnum, String, Boolean, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,8 +20,6 @@ class Servicio(Base):
     )
     precio_base: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    # Responsable del catálogo: agrega descripcion, relacion servicio_tipo_dispositivo, etc.
 
     tickets: Mapped[list["Ticket"]] = relationship(  # noqa: F821
         "Ticket", back_populates="servicio"

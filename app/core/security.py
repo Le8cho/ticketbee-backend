@@ -1,5 +1,5 @@
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import jwt
 from jwt import PyJWKClient
@@ -21,6 +21,8 @@ _DEBUG_TECNICO_ID = uuid.UUID("2ed61426-99e6-4a6f-9a8c-0b8c0edc013d")
 class UsuarioActual:
     user_id: uuid.UUID
     rol: str
+    email: str = ""
+    user_metadata: dict = field(default_factory=dict)
 
 
 def _debug_activo() -> bool:
@@ -58,15 +60,22 @@ def _extraer_usuario(payload: dict) -> UsuarioActual:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token sin subject valido",
         )
-    rol = payload.get("user_metadata", {}).get("rol", "")
-    return UsuarioActual(user_id=user_id, rol=rol)
+    user_metadata = payload.get("user_metadata", {})
+    rol = user_metadata.get("rol", "")
+    email = payload.get("email", "")
+    return UsuarioActual(user_id=user_id, rol=rol, email=email, user_metadata=user_metadata)
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> UsuarioActual:
     if _debug_activo():
-        return UsuarioActual(user_id=_DEBUG_CLIENTE_ID, rol="cliente")
+        return UsuarioActual(
+            user_id=_DEBUG_CLIENTE_ID,
+            rol="cliente",
+            email="cliente.debug@example.com",
+            user_metadata={"rol": "cliente", "nombre": "Cliente Debug", "distrito": "Miraflores"},
+        )
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token requerido")
     payload = _decode_token(credentials.credentials)

@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import UsuarioActual
 from app.repositories.cliente_repository import ClienteRepository
-from app.schemas.cliente import ClienteListItem, ClienteProfile, DispositivoConTickets, TicketResumen
+from app.schemas.cliente import ClienteListItem, ClienteOut, ClienteProfile, DispositivoConTickets, TicketResumen
 
 
 class ClienteService:
@@ -38,6 +40,33 @@ class ClienteService:
             )
             for row in rows
         ]
+
+    async def registrar_desde_supabase(self, usuario: UsuarioActual) -> tuple[ClienteOut, bool]:
+        """Crea la fila en clientes.cliente para un usuario ya autenticado en Supabase.
+
+        Idempotente: si la fila ya existe (mismo cliente_id = sub del JWT), la
+        devuelve tal cual sin modificarla. nombre/distrito salen del
+        user_metadata que el frontend manda en supabase.auth.signUp().
+        """
+        existente = await self.repo.get_by_id(usuario.user_id)
+        if existente:
+            return ClienteOut.model_validate(existente), False
+
+        nombre = usuario.user_metadata.get("nombre")
+        distrito = usuario.user_metadata.get("distrito")
+        if not nombre or not distrito:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Faltan 'nombre'/'distrito' en el registro de Supabase (user_metadata).",
+            )
+
+        cliente = await self.repo.create(
+            cliente_id=usuario.user_id,
+            nombre=nombre,
+            email=usuario.email,
+            distrito=distrito,
+        )
+        return ClienteOut.model_validate(cliente), True
 
     async def get_cliente_profile(self, cliente_id: uuid.UUID) -> ClienteProfile | None:
         """Devuelve el perfil completo del cliente con dispositivos y tickets (SD-17)."""

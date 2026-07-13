@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.core.database import get_db
+from app.core.responses import success
 from app.models.ticket import Ticket, TicketEstado
 from app.models.pago import Pago, PagoEstado
 from app.models.cliente import Cliente
@@ -24,10 +25,7 @@ router = APIRouter(prefix="/api/v1/payments")
 class PreferenceRequest(BaseModel):
     ticket_id: str
 
-class PreferenceResponse(BaseModel):
-    preference_id: str
-
-@router.post("/preference", response_model=PreferenceResponse, tags=["Payments-Publico"])
+@router.post("/preference", response_model=None, tags=["Payments-Publico"])
 async def generate_payment_preference(request: PreferenceRequest, db: AsyncSession = Depends(get_db)):
     """
     Genera un preference_id de Mercado Pago para inicializar el Checkout Pro (Brick).
@@ -58,7 +56,7 @@ async def generate_payment_preference(request: PreferenceRequest, db: AsyncSessi
             failure_url=failure_url
         )
         
-        return PreferenceResponse(preference_id=preference_id)
+        return success({"preference_id": preference_id})
         
     except Exception as e:
         logger.error(f"Error generando preferencia: {str(e)}")

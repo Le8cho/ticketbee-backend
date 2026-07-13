@@ -32,6 +32,14 @@ class Settings(BaseSettings):
 
     # Mercado Pago
     MERCADOPAGO_ACCESS_TOKEN: str = ""
+
+    # CORS (origenes separados por coma, ej. "http://localhost:5173,https://techfix.app")
+    CORS_ORIGINS: str = "http://localhost:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # ignora variables del .env que no están en Settings

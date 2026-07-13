@@ -2,18 +2,41 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services.cliente_service import ClienteService
 from app.core.responses import success, error
-from app.core.security import get_current_tecnico
+from app.core.security import UsuarioActual, get_current_tecnico, get_current_user
 
 EstadoTicket = Literal["EN_REVISION", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO", "CANCELADO"]
 TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
 
 router = APIRouter()
+
+
+@router.post(
+    "/registro",
+    summary="Auto-registro del cliente (puente Supabase -> Azure SQL)",
+    description="Crea la fila en clientes.cliente para el usuario ya autenticado en Supabase "
+                "(rol=cliente). Idempotente: si ya existe, la devuelve sin modificarla (200).",
+    tags=["Clientes-Cliente"],
+)
+async def registrar_cliente(
+    usuario: Annotated[UsuarioActual, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if usuario.rol != "cliente":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el rol cliente puede autoregistrarse.",
+        )
+    service = ClienteService(db)
+    cliente, creado = await service.registrar_desde_supabase(usuario)
+    mensaje = "Cliente registrado." if creado else "El cliente ya estaba registrado."
+    status_code = status.HTTP_201_CREATED if creado else status.HTTP_200_OK
+    return success(cliente.model_dump(mode="json"), message=mensaje, status_code=status_code)
 
 
 @router.get(
