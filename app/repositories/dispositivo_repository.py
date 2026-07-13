@@ -8,6 +8,9 @@ from sqlalchemy.orm import selectinload
 from app.models.dispositivo import Dispositivo
 from app.models.tipo_dispositivo import TipoDispositivo
 
+# noqa: E712 -- en todo el archivo se usa `== True` en vez de `.is_(True)` a propósito:
+# en el dialecto mssql, `.is_(True)` compila a "IS 1", que es sintaxis inválida en T-SQL.
+
 
 class DispositivoRepository:
     def __init__(self, db: AsyncSession):
@@ -16,7 +19,7 @@ class DispositivoRepository:
     async def get_tipos_activos(self) -> list[TipoDispositivo]:
         result = await self.db.execute(
             select(TipoDispositivo)
-            .where(TipoDispositivo.activo == True)
+            .where(TipoDispositivo.activo == True)  # noqa: E712
             .order_by(TipoDispositivo.nombre)
         )
         return list(result.scalars().all())
@@ -25,7 +28,7 @@ class DispositivoRepository:
         result = await self.db.execute(
             select(TipoDispositivo).where(
                 TipoDispositivo.tipo_dispositivo_id == tipo_id,
-                TipoDispositivo.activo == True,
+                TipoDispositivo.activo == True,  # noqa: E712
             )
         )
         return result.scalar_one_or_none()
@@ -46,11 +49,11 @@ class DispositivoRepository:
         result = await self.db.execute(
             select(Dispositivo)
             .options(selectinload(Dispositivo.tipo_dispositivo))
-            .where(Dispositivo.cliente_id == cliente_id, Dispositivo.activo == True)
+            .where(Dispositivo.cliente_id == cliente_id, Dispositivo.activo == True)  # noqa: E712
             .order_by(Dispositivo.creado_en.desc())
         )
         return list(result.scalars().all())
-    
+
     async def get_all(
         self,
         tipo_dispositivo_id: int | None = None,
@@ -63,7 +66,7 @@ class DispositivoRepository:
         q = (
             select(Dispositivo)
             .options(selectinload(Dispositivo.tipo_dispositivo))
-            .where(Dispositivo.activo == True)
+            .where(Dispositivo.activo == True)  # noqa: E712
         )
 
         if tipo_dispositivo_id is not None:
@@ -96,7 +99,7 @@ class DispositivoRepository:
             .where(
                 Dispositivo.dispositivo_id == dispositivo_id,
                 Dispositivo.cliente_id == cliente_id,
-                Dispositivo.activo == True,
+                Dispositivo.activo == True,  # noqa: E712
             )
         )
         return result.scalar_one_or_none()
@@ -107,7 +110,7 @@ class DispositivoRepository:
         q = select(Dispositivo).where(
             Dispositivo.cliente_id == cliente_id,
             Dispositivo.numero_serie == numero_serie,
-            Dispositivo.activo == True,
+            Dispositivo.activo == True,  # noqa: E712
         )
         if exclude_id:
             q = q.where(Dispositivo.dispositivo_id != exclude_id)

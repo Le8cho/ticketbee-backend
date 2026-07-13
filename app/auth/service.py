@@ -1,4 +1,3 @@
-import uuid
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +9,11 @@ from app.schemas.cliente import PerfilOut
 
 
 async def get_me(usuario: UsuarioActual, db: AsyncSession) -> PerfilOut:
+    if usuario.rol == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El rol admin no tiene perfil propio (sin datos asociados).",
+        )
     if usuario.rol == "tecnico":
         result = await db.execute(
             select(Tecnico).where(Tecnico.tecnico_id == usuario.user_id)

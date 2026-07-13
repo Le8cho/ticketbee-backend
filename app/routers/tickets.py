@@ -11,16 +11,11 @@ from app.schemas.ticket import (
     GarantiaCreate,
     TicketAceptar,
     TicketCrear,
-    TicketListItem,
     TicketRechazar,
-    TicketResponse,
 )
 from app.services import ticket_service as service
 from app.services.attachment_service import AttachmentService
-
-MAX_ADJUNTO_BYTES = 10 * 1024 * 1024  # 10 MB — igual que blob_storage.MAX_SIZE_ADJUNTO
-
-from app.core.responses import error, success
+from app.core.responses import success
 from app.core.security import (
     UsuarioActual,
     get_current_user,
@@ -28,13 +23,15 @@ from app.core.security import (
     get_current_tecnico as require_tecnico,
 )
 
+MAX_ADJUNTO_BYTES = 10 * 1024 * 1024  # 10 MB — igual que blob_storage.MAX_SIZE_ADJUNTO
+
 router = APIRouter()
 
 
 # Cliente
 # --------------------------------------
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, tags=["Tickets-Cliente"])
 async def crear_ticket(
     payload: TicketCrear,
     cliente_id: uuid.UUID = Depends(require_cliente),
@@ -44,7 +41,7 @@ async def crear_ticket(
     return success(ticket.model_dump(mode="json"), "Ticket creado.", status.HTTP_201_CREATED)
 
 
-@router.patch("/{ticket_id}/confirmar-recepcion")
+@router.patch("/{ticket_id}/confirmar-recepcion", tags=["Tickets-Cliente"])
 async def confirmar_recepcion(
     ticket_id: uuid.UUID,
     cliente_id: uuid.UUID = Depends(require_cliente),
@@ -54,7 +51,7 @@ async def confirmar_recepcion(
     return success(ticket.model_dump(mode="json"), "Recepción confirmada. Ticket finalizado.")
 
 
-@router.patch("/{ticket_id}/reabrir")
+@router.patch("/{ticket_id}/reabrir", tags=["Tickets-Cliente"])
 async def reabrir_ticket(
     ticket_id: uuid.UUID,
     cliente_id: uuid.UUID = Depends(require_cliente),
@@ -67,7 +64,7 @@ async def reabrir_ticket(
 # Técnico
 # --------------------------------------
 
-@router.patch("/{ticket_id}/aceptar")
+@router.patch("/{ticket_id}/aceptar", tags=["Tickets-Tecnico"])
 async def aceptar_ticket(
     ticket_id: uuid.UUID,
     payload: TicketAceptar,
@@ -78,7 +75,7 @@ async def aceptar_ticket(
     return success(ticket.model_dump(mode="json"), "Ticket aceptado.")
 
 
-@router.patch("/{ticket_id}/rechazar")
+@router.patch("/{ticket_id}/rechazar", tags=["Tickets-Tecnico"])
 async def rechazar_ticket(
     ticket_id: uuid.UUID,
     payload: TicketRechazar,
@@ -89,7 +86,7 @@ async def rechazar_ticket(
     return success(ticket.model_dump(mode="json"), "Ticket rechazado.")
 
 
-@router.patch("/{ticket_id}/confirmar-entrega")
+@router.patch("/{ticket_id}/confirmar-entrega", tags=["Tickets-Tecnico"])
 async def confirmar_entrega(
     ticket_id: uuid.UUID,
     tecnico_id: uuid.UUID = Depends(require_tecnico),
@@ -99,7 +96,7 @@ async def confirmar_entrega(
     return success(ticket.model_dump(mode="json"), "Entrega confirmada.")
 
 
-@router.patch("/{ticket_id}/archivar")
+@router.patch("/{ticket_id}/archivar", tags=["Tickets-Tecnico"])
 async def archivar_ticket(
     ticket_id: uuid.UUID,
     tecnico_id: uuid.UUID = Depends(require_tecnico),
@@ -109,7 +106,7 @@ async def archivar_ticket(
     return success(datos, "Ticket archivado.")
 
 
-@router.post("/{ticket_id}/garantia", status_code=status.HTTP_201_CREATED)
+@router.post("/{ticket_id}/garantia", status_code=status.HTTP_201_CREATED, tags=["Tickets-Tecnico"])
 async def registrar_garantia(
     ticket_id: uuid.UUID,
     payload: GarantiaCreate,
@@ -123,18 +120,18 @@ async def registrar_garantia(
 # Compartidos
 # --------------------------------------
 
-@router.get("/{ticket_id}", response_model=None)
+@router.get("/{ticket_id}", response_model=None, tags=["Tickets-Compartido"])
 async def obtener_ticket(
     ticket_id: uuid.UUID,
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    es_tecnico = usuario.rol == "tecnico"
+    es_tecnico = usuario.rol in ("tecnico", "admin")
     ticket = await service.obtener_ticket(db, ticket_id, usuario.user_id, es_tecnico)
     return success(ticket.model_dump(mode="json"), "OK")
 
 
-@router.get("", response_model=None)
+@router.get("", response_model=None, tags=["Tickets-Compartido"])
 async def listar_tickets(
     estado: Optional[TicketEstado] = None,
     cliente_id: Optional[uuid.UUID] = None,
@@ -145,7 +142,7 @@ async def listar_tickets(
     usuario: UsuarioActual = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if usuario.rol == "tecnico":
+    if usuario.rol in ("tecnico", "admin"):
         tickets = await service.listar_tickets_tecnico(
             db,
             estado=estado,
@@ -167,7 +164,7 @@ def _attachment_service(db: AsyncSession = Depends(get_db)) -> AttachmentService
     return AttachmentService(db)
 
 
-@router.post("/{ticket_id}/adjuntos", status_code=status.HTTP_201_CREATED)
+@router.post("/{ticket_id}/adjuntos", status_code=status.HTTP_201_CREATED, tags=["Tickets-Compartido"])
 async def subir_adjunto(
     ticket_id: uuid.UUID,
     archivo: UploadFile = File(...),
@@ -178,7 +175,7 @@ async def subir_adjunto(
     data = await archivo.read()
     if len(data) > MAX_ADJUNTO_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="El adjunto supera el límite de 10 MB.",
         )
     adjunto, sas_url = await service.subir_adjunto(
@@ -194,7 +191,7 @@ async def subir_adjunto(
     )
 
 
-@router.get("/{ticket_id}/adjuntos")
+@router.get("/{ticket_id}/adjuntos", tags=["Tickets-Compartido"])
 async def listar_adjuntos(
     ticket_id: uuid.UUID,
     usuario: UsuarioActual = Depends(get_current_user),

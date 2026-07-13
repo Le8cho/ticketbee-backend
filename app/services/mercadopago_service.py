@@ -2,7 +2,6 @@ import asyncio
 import mercadopago
 from app.core.config import settings
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

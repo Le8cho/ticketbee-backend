@@ -48,11 +48,13 @@ class AttachmentService:
         try:
             validar_adjunto(data, content_type)
         except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
 
         await self._get_ticket_en_progreso(ticket_id)
 
-        subido_por = SubidoPor.TECNICO if rol == "tecnico" else SubidoPor.CLIENTE
+        # SubidoPor solo distingue TECNICO/CLIENTE; el admin (sin fila propia)
+        # se registra como TECNICO al subir adjuntos.
+        subido_por = SubidoPor.TECNICO if rol in ("tecnico", "admin") else SubidoPor.CLIENTE
         adjunto_id = uuid.uuid4()
         blob_name = f"{ticket_id}/{adjunto_id}"
 
@@ -87,7 +89,7 @@ class AttachmentService:
         return await generate_sas_url(settings.AZURE_STORAGE_CONTAINER_TICKETS, blob_name)
 
     async def eliminar_adjunto(self, adjunto_id: uuid.UUID, rol: str) -> None:
-        if rol != "tecnico":
+        if rol not in ("tecnico", "admin"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el técnico puede eliminar adjuntos")
         adjunto = await self.repo.get_by_id(adjunto_id)
         if not adjunto:

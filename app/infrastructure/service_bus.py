@@ -1,6 +1,5 @@
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
 
 from azure.servicebus.aio import ServiceBusClient

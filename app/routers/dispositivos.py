@@ -19,14 +19,14 @@ def _service(db: AsyncSession = Depends(get_db)) -> DispositivoService:
     return DispositivoService(db)
 
 
-@router.get("/tipos")
+@router.get("/tipos", tags=["Dispositivos-Publico"])
 async def listar_tipos(service: DispositivoService = Depends(_service)):
     """Devuelve los tipos de dispositivo activos del catálogo."""
     data = await service.listar_tipos()
     return success([t.model_dump() for t in data])
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, tags=["Dispositivos-Cliente"])
 async def registrar_dispositivo(
     body: DispositivoCreate,
     cliente_id: UUID = Depends(get_current_cliente),
@@ -37,7 +37,7 @@ async def registrar_dispositivo(
     return success(data.model_dump(mode="json"), status_code=status.HTTP_201_CREATED)
 
 
-@router.get("")
+@router.get("", tags=["Dispositivos-Compartido"])
 async def listar_dispositivos(
     usuario: UsuarioActual = Depends(get_current_user),
     service: DispositivoService = Depends(_service),
@@ -46,8 +46,8 @@ async def listar_dispositivos(
     servicio_id: UUID | None = None,
     cliente_id: UUID | None = None,
 ):
-    """Técnico: todos los dispositivos activos (con filtros opcionales). Cliente: solo los suyos."""
-    if usuario.rol == "tecnico":
+    """Técnico/admin: todos los dispositivos activos (con filtros opcionales). Cliente: solo los suyos."""
+    if usuario.rol in ("tecnico", "admin"):
         data = await service.listar_todos(
             tipo_dispositivo_id=tipo_dispositivo_id,
             estado_ticket=estado_ticket,
@@ -64,7 +64,7 @@ async def listar_dispositivos(
     return success([d.model_dump(mode="json") for d in data])
 
 
-@router.patch("/{dispositivo_id}")
+@router.patch("/{dispositivo_id}", tags=["Dispositivos-Cliente"])
 async def actualizar_dispositivo(
     dispositivo_id: UUID,
     body: DispositivoUpdate,
@@ -76,7 +76,7 @@ async def actualizar_dispositivo(
     return success(data.model_dump(mode="json"))
 
 
-@router.delete("/{dispositivo_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{dispositivo_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Dispositivos-Cliente"])
 async def desactivar_dispositivo(
     dispositivo_id: UUID,
     cliente_id: UUID = Depends(get_current_cliente),
@@ -87,7 +87,7 @@ async def desactivar_dispositivo(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{dispositivo_id}/foto", status_code=status.HTTP_200_OK)
+@router.post("/{dispositivo_id}/foto", status_code=status.HTTP_200_OK, tags=["Dispositivos-Cliente"])
 async def subir_foto_dispositivo(
     dispositivo_id: UUID,
     foto: UploadFile = File(...),
@@ -98,14 +98,14 @@ async def subir_foto_dispositivo(
     data = await foto.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="La imagen supera el límite de 5 MB.",
         )
     sas_url = await service.subir_foto(dispositivo_id, cliente_id, data, foto.content_type or "")
     return success({"url": sas_url})
 
 
-@router.get("/{dispositivo_id}/foto")
+@router.get("/{dispositivo_id}/foto", tags=["Dispositivos-Cliente"])
 async def obtener_foto_dispositivo(
     dispositivo_id: UUID,
     cliente_id: UUID = Depends(get_current_cliente),

@@ -23,7 +23,7 @@ async def main():
             # 1. Conexión básica
             result = await conn.execute(text("SELECT version()"))
             version = result.scalar()
-            print(f"✓ Conexión exitosa")
+            print("✓ Conexión exitosa")
             print(f"  PostgreSQL: {version[:50]}...\n")
 
             # 2. Schemas

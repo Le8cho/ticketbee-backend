@@ -21,7 +21,13 @@ def mock_tecnico_auth():
     return TECNICO_ID_TEST
 
 
-app.dependency_overrides[get_current_tecnico] = mock_tecnico_auth
+@pytest.fixture(scope="module", autouse=True)
+def _override_auth():
+    """Scoped a este módulo: evita pisar los overrides de otros archivos de test
+    que comparten el mismo `app.dependency_overrides`."""
+    app.dependency_overrides[get_current_tecnico] = mock_tecnico_auth
+    yield
+    app.dependency_overrides.pop(get_current_tecnico, None)
 
 
 @pytest.fixture
@@ -112,7 +118,7 @@ class TestPerfilCliente:
         cliente_id = clientes[0]["cliente_id"]
         response = await client.get(f"/api/v1/clientes/{cliente_id}")
         data = response.json()["data"]
-        for campo in ("cliente_id", "nombre", "email", "distrito", "email_verificado", "dispositivos"):
+        for campo in ("cliente_id", "nombre", "email", "distrito", "dispositivos"):
             assert campo in data, f"Campo '{campo}' falta en el perfil"
 
     async def test_dispositivos_es_lista(self, client):

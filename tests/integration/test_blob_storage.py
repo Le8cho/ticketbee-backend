@@ -13,13 +13,12 @@ Los tests de upload exitoso requieren .env con AZURE_STORAGE_CONNECTION_STR conf
 Ejecutar:
     uv run pytest tests/integration/test_blob_storage.py -v
 """
-import io
 import uuid
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from main import app
-from app.utils.security import get_current_cliente, get_current_user_dev
+from app.main import app
+from app.core.security import get_current_cliente, get_current_user_dev
 
 CLIENTE_ID_TEST = uuid.UUID("00000000-0000-0000-0000-000000000099")
 TECNICO_ID_TEST = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -45,8 +44,16 @@ def mock_tecnico():
     return MockUsuario("tecnico")
 
 
-app.dependency_overrides[get_current_cliente] = mock_cliente
-app.dependency_overrides[get_current_user_dev] = mock_tecnico
+@pytest.fixture(scope="module", autouse=True)
+def _override_auth():
+    """Scoped a este módulo: evita pisar los overrides de otros archivos de test
+    que comparten el mismo `app.dependency_overrides` (get_current_user_dev es
+    el mismo objeto que get_current_user)."""
+    app.dependency_overrides[get_current_cliente] = mock_cliente
+    app.dependency_overrides[get_current_user_dev] = mock_tecnico
+    yield
+    app.dependency_overrides.pop(get_current_cliente, None)
+    app.dependency_overrides.pop(get_current_user_dev, None)
 
 
 @pytest.fixture

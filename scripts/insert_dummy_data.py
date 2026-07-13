@@ -1,7 +1,6 @@
 import sys
 import os
 import uuid
-import datetime
 
 # Asegurar que importemos desde la raiz del proyecto
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,7 +34,7 @@ def main():
     try:
         # Verificar conexion
         db.execute(text("SELECT 1"))
-    except Exception as e:
+    except Exception:
         # Si falla probamos con usadmin@server-ticketfix
         print("Fallo conexion, intentando fix de username de Azure SQL para pymssql...")
         db_url = db_url.replace("usadmin:", "usadmin@server-ticketfix:")

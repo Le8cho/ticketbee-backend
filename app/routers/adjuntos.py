@@ -16,7 +16,7 @@ def _service(db: AsyncSession = Depends(get_db)) -> AttachmentService:
     return AttachmentService(db)
 
 
-@router.get("/{adjunto_id}/url")
+@router.get("/{adjunto_id}/url", tags=["Adjuntos-Compartido"])
 async def obtener_url_adjunto(
     adjunto_id: uuid.UUID,
     usuario: UsuarioActual = Depends(get_current_user),
@@ -27,7 +27,7 @@ async def obtener_url_adjunto(
     return success({"url": sas_url})
 
 
-@router.delete("/{adjunto_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{adjunto_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Adjuntos-Tecnico"])
 async def eliminar_adjunto(
     adjunto_id: uuid.UUID,
     usuario: UsuarioActual = Depends(get_current_user),

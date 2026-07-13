@@ -17,6 +17,7 @@ router = APIRouter()
     summary="Datos basicos de un tecnico",
     description="Devuelve nombre y email de un tecnico por su ID. Uso interno "
                 "(ej. notificaciones cuando se reabre un ticket por garantia).",
+    tags=["Tecnicos-Tecnico"],
 )
 async def obtener_tecnico(
     tecnico_id: uuid.UUID,

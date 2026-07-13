@@ -2,17 +2,16 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-EstadoTicket = Literal["EN_REVISION", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO", "CANCELADO"]
-TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
-
 from app.core.database import get_db
-from app.schemas.cliente import ClienteListItem, ClienteProfile
 from app.services.cliente_service import ClienteService
 from app.core.responses import success, error
 from app.core.security import get_current_tecnico
+
+EstadoTicket = Literal["EN_REVISION", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO", "CANCELADO"]
+TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
 
 router = APIRouter()
 
@@ -22,6 +21,7 @@ router = APIRouter()
     summary="Listar clientes",
     description="Devuelve todos los clientes activos con su conteo de tickets activos y estado "
                 "del último ticket. Solo accesible para el técnico. Admite filtros opcionales.",
+    tags=["Clientes-Tecnico"],
 )
 async def list_clientes(
     tecnico_id: Annotated[uuid.UUID, Depends(get_current_tecnico)],
@@ -46,6 +46,7 @@ async def list_clientes(
     summary="Perfil de cliente",
     description="Devuelve el perfil completo del cliente: datos de contacto, dispositivos "
                 "registrados y el historial de tickets agrupado por dispositivo. Solo técnico.",
+    tags=["Clientes-Tecnico"],
 )
 async def get_cliente_profile(
     cliente_id: uuid.UUID,
