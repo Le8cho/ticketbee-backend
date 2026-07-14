@@ -18,12 +18,12 @@ class Dispositivo(Base):
     )
     cliente_id: Mapped[uuid.UUID] = mapped_column(
         UNIQUEIDENTIFIER,
-        ForeignKey("clientes.cliente.cliente_id", ondelete="RESTRICT"),
+        ForeignKey("clientes.cliente.cliente_id", ondelete="NO ACTION"),
         nullable=False,
     )
     tipo_dispositivo_id: Mapped[int] = mapped_column(
         SmallInteger,
-        ForeignKey("owner.tipo_dispositivo.tipo_dispositivo_id", ondelete="RESTRICT"),
+        ForeignKey("owner.tipo_dispositivo.tipo_dispositivo_id", ondelete="NO ACTION"),
         nullable=False,
     )
     marca: Mapped[str] = mapped_column(String(80), nullable=False)
