@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     # Mercado Pago
     MERCADOPAGO_ACCESS_TOKEN: str = ""
+    # URL pública del backend (túnel ngrok en desarrollo) — MP manda el webhook acá
+    BACKEND_PUBLIC_URL: str = "http://localhost:8000"
+    # URL pública del frontend — back_urls de éxito/fallo del checkout
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # CORS (origenes separados por coma, ej. "http://localhost:5173,https://techfix.app")
     CORS_ORIGINS: str = "http://localhost:5173"

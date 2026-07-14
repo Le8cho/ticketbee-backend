@@ -25,15 +25,16 @@ from app.infrastructure.service_bus import publicar_evento_ticket
 # -------------------------------------------
 
 def _a_response(ticket, ocultar_motivo: bool = False) -> TicketResponse:
-    dispositivo_id = (
-        ticket.dispositivos[0].dispositivo_id if ticket.dispositivos else None
-    )
+    dispositivo = ticket.dispositivos[0].dispositivo if ticket.dispositivos else None
     return TicketResponse(
         ticket_id=ticket.ticket_id,
         cliente_id=ticket.cliente_id,
         servicio_id=ticket.servicio_id,
+        servicio_nombre=ticket.servicio.nombre if ticket.servicio else None,
         tecnico_id=ticket.tecnico_id,
-        dispositivo_id=dispositivo_id,
+        dispositivo_id=dispositivo.dispositivo_id if dispositivo else None,
+        dispositivo_marca=dispositivo.marca if dispositivo else None,
+        dispositivo_modelo=dispositivo.modelo if dispositivo else None,
         estado=ticket.estado,
         descripcion=ticket.descripcion,
         precio_base=ticket.precio_base,
@@ -48,14 +49,15 @@ def _a_response(ticket, ocultar_motivo: bool = False) -> TicketResponse:
 
 
 def _a_list_item(ticket) -> TicketListItem:
-    dispositivo_id = (
-        ticket.dispositivos[0].dispositivo_id if ticket.dispositivos else None
-    )
+    dispositivo = ticket.dispositivos[0].dispositivo if ticket.dispositivos else None
     return TicketListItem(
         ticket_id=ticket.ticket_id,
         estado=ticket.estado,
         servicio_id=ticket.servicio_id,
-        dispositivo_id=dispositivo_id,
+        servicio_nombre=ticket.servicio.nombre if ticket.servicio else None,
+        dispositivo_id=dispositivo.dispositivo_id if dispositivo else None,
+        dispositivo_marca=dispositivo.marca if dispositivo else None,
+        dispositivo_modelo=dispositivo.modelo if dispositivo else None,
         precio_base=ticket.precio_base,
         precio_final=ticket.precio_final,
         creado_en=ticket.creado_en,
@@ -142,6 +144,11 @@ async def crear_ticket(
         descripcion=payload.descripcion,
     )
     await db.commit()
+
+    # repo.crear_ticket solo refresca la colección "dispositivos" (no sus
+    # relaciones anidadas ni el servicio) — se recarga completo para la
+    # respuesta, mismo patrón que el resto de las mutaciones de este archivo.
+    ticket = await repo.obtener_por_id(db, ticket.ticket_id)
 
     await publicar_evento_ticket("ticket.creado", {
         "ticket_id": str(ticket.ticket_id),

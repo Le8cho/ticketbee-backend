@@ -40,6 +40,12 @@ class TicketDispositivo(Base):
     )
 
     ticket: Mapped["Ticket"] = relationship(back_populates="dispositivos")
+    dispositivo: Mapped["Dispositivo"] = relationship(  # noqa: F821
+        "Dispositivo",
+        primaryjoin="TicketDispositivo.dispositivo_id == Dispositivo.dispositivo_id",
+        foreign_keys="TicketDispositivo.dispositivo_id",
+        viewonly=True,
+    )
 
 
 class Ticket(Base):

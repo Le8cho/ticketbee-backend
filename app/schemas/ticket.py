@@ -39,8 +39,11 @@ class TicketResponse(BaseModel):
     ticket_id: uuid.UUID
     cliente_id: uuid.UUID
     servicio_id: uuid.UUID
+    servicio_nombre: Optional[str] = None
     tecnico_id: Optional[uuid.UUID]
     dispositivo_id: Optional[uuid.UUID]
+    dispositivo_marca: Optional[str] = None
+    dispositivo_modelo: Optional[str] = None
     estado: TicketEstado
     descripcion: Optional[str]
     precio_base: Optional[Decimal]
@@ -59,7 +62,10 @@ class TicketListItem(BaseModel):
     ticket_id: uuid.UUID
     estado: TicketEstado
     servicio_id: uuid.UUID
+    servicio_nombre: Optional[str] = None
     dispositivo_id: Optional[uuid.UUID]
+    dispositivo_marca: Optional[str] = None
+    dispositivo_modelo: Optional[str] = None
     precio_base: Optional[Decimal]
     precio_final: Optional[Decimal]
     creado_en: datetime

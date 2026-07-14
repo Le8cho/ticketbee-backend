@@ -40,7 +40,10 @@ class DispositivoRepository:
         # Reload con relación para devolver tipo_dispositivo poblado
         result = await self.db.execute(
             select(Dispositivo)
-            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .options(
+                selectinload(Dispositivo.tipo_dispositivo),
+                selectinload(Dispositivo.cliente),
+            )
             .where(Dispositivo.dispositivo_id == dispositivo.dispositivo_id)
         )
         return result.scalar_one()
@@ -48,7 +51,10 @@ class DispositivoRepository:
     async def get_all_by_cliente(self, cliente_id: UUID) -> list[Dispositivo]:
         result = await self.db.execute(
             select(Dispositivo)
-            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .options(
+                selectinload(Dispositivo.tipo_dispositivo),
+                selectinload(Dispositivo.cliente),
+            )
             .where(Dispositivo.cliente_id == cliente_id, Dispositivo.activo == True)  # noqa: E712
             .order_by(Dispositivo.creado_en.desc())
         )
@@ -65,7 +71,10 @@ class DispositivoRepository:
 
         q = (
             select(Dispositivo)
-            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .options(
+                selectinload(Dispositivo.tipo_dispositivo),
+                selectinload(Dispositivo.cliente),
+            )
             .where(Dispositivo.activo == True)  # noqa: E712
         )
 
@@ -95,7 +104,10 @@ class DispositivoRepository:
     async def get_by_id(self, dispositivo_id: UUID, cliente_id: UUID) -> Dispositivo | None:
         result = await self.db.execute(
             select(Dispositivo)
-            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .options(
+                selectinload(Dispositivo.tipo_dispositivo),
+                selectinload(Dispositivo.cliente),
+            )
             .where(
                 Dispositivo.dispositivo_id == dispositivo_id,
                 Dispositivo.cliente_id == cliente_id,
@@ -123,7 +135,10 @@ class DispositivoRepository:
         await self.db.commit()
         result = await self.db.execute(
             select(Dispositivo)
-            .options(selectinload(Dispositivo.tipo_dispositivo))
+            .options(
+                selectinload(Dispositivo.tipo_dispositivo),
+                selectinload(Dispositivo.cliente),
+            )
             .where(Dispositivo.dispositivo_id == dispositivo.dispositivo_id)
         )
         return result.scalar_one()

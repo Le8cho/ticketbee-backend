@@ -45,7 +45,10 @@ async def obtener_por_id(
 ) -> Optional[Ticket]:
     result = await db.execute(
         select(Ticket)
-        .options(selectinload(Ticket.dispositivos))
+        .options(
+            selectinload(Ticket.servicio),
+            selectinload(Ticket.dispositivos).selectinload(TicketDispositivo.dispositivo),
+        )
         .where(Ticket.ticket_id == ticket_id)
     )
     return result.scalar_one_or_none()
@@ -62,7 +65,10 @@ async def listar_todos(
 ) -> list[Ticket]:
     query = (
         select(Ticket)
-        .options(selectinload(Ticket.dispositivos))
+        .options(
+            selectinload(Ticket.servicio),
+            selectinload(Ticket.dispositivos).selectinload(TicketDispositivo.dispositivo),
+        )
         .order_by(Ticket.creado_en.desc())
     )
     if estado is not None:
@@ -125,7 +131,10 @@ async def listar_por_cliente(
 ) -> list[Ticket]:
     query = (
         select(Ticket)
-        .options(selectinload(Ticket.dispositivos))
+        .options(
+            selectinload(Ticket.servicio),
+            selectinload(Ticket.dispositivos).selectinload(TicketDispositivo.dispositivo),
+        )
         .where(Ticket.cliente_id == cliente_id)
         .order_by(Ticket.creado_en.desc())
     )

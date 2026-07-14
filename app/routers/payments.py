@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import logging
 from datetime import datetime, timezone
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.responses import success
 from app.models.ticket import Ticket, TicketEstado
@@ -31,23 +32,22 @@ async def generate_payment_preference(request: PreferenceRequest, db: AsyncSessi
     Genera un preference_id de Mercado Pago para inicializar el Checkout Pro (Brick).
     Valida que el ticket esté en EN_ESPERA_PAGO.
     """
+    # Obtener el ticket de la DB
+    result = await db.execute(select(Ticket).where(Ticket.ticket_id == request.ticket_id))
+    ticket = result.scalars().first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    if ticket.estado != TicketEstado.EN_ESPERA_PAGO:
+        raise HTTPException(status_code=400, detail="El ticket no está pendiente de pago")
+
+    # Generar preferencia (Monto en S/.)
+    success_url = f"{settings.FRONTEND_URL}/cliente/pago-exitoso"
+    failure_url = f"{settings.FRONTEND_URL}/cliente/pago-fallido"
+    webhook_url = f"{settings.BACKEND_PUBLIC_URL}/api/v1/payments/webhook"
+
     try:
-        # Obtener el ticket de la DB
-        result = await db.execute(select(Ticket).where(Ticket.ticket_id == request.ticket_id))
-        ticket = result.scalars().first()
-        
-        if not ticket:
-            raise HTTPException(status_code=404, detail="Ticket no encontrado")
-            
-        if ticket.estado != TicketEstado.EN_ESPERA_PAGO:
-            raise HTTPException(status_code=400, detail="El ticket no está pendiente de pago")
-            
-        # Generar preferencia (Monto en S/.)
-        # Nota: Configura las URLs de retorno según tu frontend
-        success_url = "http://localhost:3000/pago-exitoso"
-        failure_url = "http://localhost:3000/pago-fallido"
-        webhook_url = "https://rumor-designing-unaudited.ngrok-free.dev/api/v1/payments/webhook"
-        
         preference_id = await create_preference(
             ticket_id=str(ticket.ticket_id),
             monto_soles=float(ticket.precio_final),
@@ -55,12 +55,11 @@ async def generate_payment_preference(request: PreferenceRequest, db: AsyncSessi
             success_url=success_url,
             failure_url=failure_url
         )
-        
-        return success({"preference_id": preference_id})
-        
     except Exception as e:
         logger.error(f"Error generando preferencia: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno al generar preferencia de pago")
+
+    return success({"preference_id": preference_id})
 
 
 @router.post("/webhook", summary="Payment Listener Webhook (Mercado Pago)", tags=["Payments-Webhook"])
@@ -108,8 +107,15 @@ async def payment_listener_webhook(request: Request, db: AsyncSession = Depends(
             monto_cobrado = float(payment_info.get("transaction_amount", 0))
             
             if status == "approved" and external_reference:
-                # 1. Obtener Ticket
-                result = await db.execute(select(Ticket).where(Ticket.ticket_id == external_reference))
+                # 1. Obtener Ticket (con lock de fila: Mercado Pago reintenta el
+                # mismo webhook y dos llamadas concurrentes no deben ver ambas
+                # el ticket como "no procesado todavía" antes de que la primera
+                # confirme el commit).
+                result = await db.execute(
+                    select(Ticket)
+                    .where(Ticket.ticket_id == external_reference)
+                    .with_for_update()
+                )
                 ticket = result.scalars().first()
                 
                 if not ticket:

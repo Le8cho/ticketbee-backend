@@ -10,6 +10,15 @@ class TipoDispositivoOut(BaseModel):
     nombre: str
 
 
+class ClienteBasico(BaseModel):
+    """Datos mínimos del cliente dueño, para mostrar en listados de técnico."""
+    model_config = ConfigDict(from_attributes=True)
+
+    cliente_id: UUID
+    nombre: str
+    email: str
+
+
 class DispositivoCreate(BaseModel):
     tipo_dispositivo_id: int
     marca: str = Field(..., min_length=1, max_length=80)
@@ -29,6 +38,8 @@ class DispositivoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     dispositivo_id: UUID
+    cliente_id: UUID
+    cliente: ClienteBasico
     tipo_dispositivo_id: int
     tipo_dispositivo: TipoDispositivoOut
     marca: str
