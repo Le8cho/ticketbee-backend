@@ -3,7 +3,7 @@ import enum
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, Text, text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -96,7 +96,7 @@ class Ticket(Base):
     actualizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default="SYSDATETIMEOFFSET()",
+        server_default=text("SYSDATETIMEOFFSET()"),
     )
     cliente: Mapped["Cliente"] = relationship(back_populates="tickets")
     servicio: Mapped["Servicio"] = relationship(back_populates="tickets")

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy import DateTime, ForeignKey, text
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,5 +30,5 @@ class Garantia(Base):
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        server_default="SYSDATETIMEOFFSET()",
+        server_default=text("SYSDATETIMEOFFSET()"),
     )

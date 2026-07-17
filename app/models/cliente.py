@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from app.core.database import Base
@@ -22,7 +22,7 @@ class Cliente(Base):
     distrito: Mapped[str] = mapped_column(String(100), nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     creado_en: Mapped[str] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default="GETUTCDATE()"
+        DateTime(timezone=True), nullable=False, server_default=text("GETUTCDATE()")
     )
 
     dispositivos: Mapped[list["Dispositivo"]] = relationship(  # noqa: F821

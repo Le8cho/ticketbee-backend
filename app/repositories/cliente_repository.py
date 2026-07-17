@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy import select, func, exists
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,7 +34,14 @@ class ClienteRepository:
     async def create(self, **data) -> Cliente:
         cliente = Cliente(**data)
         self.db.add(cliente)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Ya existe un cliente registrado con ese email.",
+            )
         await self.db.refresh(cliente)
         return cliente
 

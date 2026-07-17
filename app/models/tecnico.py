@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from app.core.database import Base
@@ -15,5 +15,5 @@ class Tecnico(Base):
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     creado_en: Mapped[str] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default="GETUTCDATE()"
+        DateTime(timezone=True), nullable=False, server_default=text("GETUTCDATE()")
     )
