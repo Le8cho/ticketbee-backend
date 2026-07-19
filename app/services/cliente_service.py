@@ -90,6 +90,9 @@ class ClienteService:
                     precio_base=float(row.Ticket.precio_base) if row.Ticket.precio_base else None,
                     precio_final=float(row.Ticket.precio_final) if row.Ticket.precio_final else None,
                     creado_en=row.Ticket.creado_en,
+                    fecha_finalizacion=row.Ticket.fecha_finalizacion,
+                    garantia_fecha_inicio=row.garantia_fecha_inicio,
+                    garantia_fecha_vencimiento=row.garantia_fecha_vencimiento,
                 )
             )
 

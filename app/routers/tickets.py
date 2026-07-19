@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.ticket import TicketEstado
 from app.schemas.ticket import (
     GarantiaCreate,
+    IncidenteGarantiaCreate,
     TicketAceptar,
     TicketCrear,
     TicketRechazar,
@@ -54,10 +55,12 @@ async def confirmar_recepcion(
 @router.patch("/{ticket_id}/reabrir", tags=["Tickets-Cliente"])
 async def reabrir_ticket(
     ticket_id: uuid.UUID,
+    payload: Optional[IncidenteGarantiaCreate] = None,
     cliente_id: uuid.UUID = Depends(require_cliente),
     db: AsyncSession = Depends(get_db),
 ):
-    ticket = await service.reabrir_por_garantia(db, ticket_id, cliente_id)
+    descripcion = payload.descripcion if payload else None
+    ticket = await service.reabrir_por_garantia(db, ticket_id, cliente_id, descripcion)
     return success(ticket.model_dump(mode="json"), "Ticket reabierto por incidencia de garantía.")
 
 

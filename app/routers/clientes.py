@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.services.cliente_service import ClienteService
 from app.core.responses import success, error
-from app.core.security import UsuarioActual, get_current_tecnico, get_current_user
+from app.core.security import UsuarioActual, get_current_cliente, get_current_tecnico, get_current_user
 
 EstadoTicket = Literal["EN_REVISION", "EN_ESPERA_PAGO", "EN_PROGRESO", "FINALIZADO", "RECHAZADO", "ARCHIVADO", "CANCELADO"]
-TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE"]
+TipoServicio = Literal["PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE", "OTROS"]
 
 router = APIRouter()
 
@@ -62,6 +62,25 @@ async def list_clientes(
         tipo_ultimo_ticket=tipo_ultimo_ticket,
     )
     return success([c.model_dump(mode="json") for c in clientes])
+
+
+@router.get(
+    "/me/perfil",
+    summary="Perfil del cliente autenticado",
+    description="Devuelve el perfil del propio cliente autenticado: dispositivos registrados "
+                "y el historial de tickets agrupado por dispositivo (con costo y fechas de "
+                "garantía cuando aplica). Accesible solo para el rol cliente.",
+    tags=["Clientes-Cliente"],
+)
+async def get_mi_perfil(
+    cliente_id: Annotated[uuid.UUID, Depends(get_current_cliente)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    service = ClienteService(db)
+    profile = await service.get_cliente_profile(cliente_id)
+    if not profile:
+        return error("Cliente no encontrado", status_code=status.HTTP_404_NOT_FOUND)
+    return success(profile.model_dump(mode="json"))
 
 
 @router.get(

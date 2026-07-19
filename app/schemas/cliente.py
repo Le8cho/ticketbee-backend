@@ -83,6 +83,9 @@ class TicketResumen(BaseModel):
     precio_base: float | None
     precio_final: float | None
     creado_en: datetime
+    fecha_finalizacion: datetime | None = None
+    garantia_fecha_inicio: datetime | None = None
+    garantia_fecha_vencimiento: datetime | None = None
 
     model_config = {"from_attributes": True}
 

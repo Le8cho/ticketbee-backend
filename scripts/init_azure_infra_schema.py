@@ -44,6 +44,7 @@ CATALOGO_SERVICIO = [
     {"nombre": "Cambio de pantalla", "tipo_servicio": "CORRECTIVO", "precio_base": 150.00},
     {"nombre": "Limpieza y mantenimiento", "tipo_servicio": "PREVENTIVO", "precio_base": 40.00},
     {"nombre": "Reparación de placa", "tipo_servicio": "CORRECTIVO", "precio_base": 200.00},
+    {"nombre": "Otro / Diagnóstico personalizado", "tipo_servicio": "OTROS", "precio_base": 0.01},
 ]
 
 

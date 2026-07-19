@@ -24,8 +24,9 @@ from app.infrastructure.service_bus import publicar_evento_ticket
 # Helper interno
 # -------------------------------------------
 
-def _a_response(ticket, ocultar_motivo: bool = False) -> TicketResponse:
+async def _a_response(db: AsyncSession, ticket, ocultar_motivo: bool = False) -> TicketResponse:
     dispositivo = ticket.dispositivos[0].dispositivo if ticket.dispositivos else None
+    garantia = await _obtener_garantia(db, ticket.ticket_id)
     return TicketResponse(
         ticket_id=ticket.ticket_id,
         cliente_id=ticket.cliente_id,
@@ -35,6 +36,7 @@ def _a_response(ticket, ocultar_motivo: bool = False) -> TicketResponse:
         dispositivo_id=dispositivo.dispositivo_id if dispositivo else None,
         dispositivo_marca=dispositivo.marca if dispositivo else None,
         dispositivo_modelo=dispositivo.modelo if dispositivo else None,
+        dispositivo_foto_url=dispositivo.foto_url if dispositivo else None,
         estado=ticket.estado,
         descripcion=ticket.descripcion,
         precio_base=ticket.precio_base,
@@ -45,6 +47,9 @@ def _a_response(ticket, ocultar_motivo: bool = False) -> TicketResponse:
         fecha_finalizacion=ticket.fecha_finalizacion,
         creado_en=ticket.creado_en,
         actualizado_en=ticket.actualizado_en,
+        garantia_fecha_inicio=garantia.fecha_inicio if garantia else None,
+        garantia_fecha_vencimiento=garantia.fecha_vencimiento if garantia else None,
+        garantia_usada=garantia.usada if garantia else None,
     )
 
 
@@ -58,6 +63,7 @@ def _a_list_item(ticket) -> TicketListItem:
         dispositivo_id=dispositivo.dispositivo_id if dispositivo else None,
         dispositivo_marca=dispositivo.marca if dispositivo else None,
         dispositivo_modelo=dispositivo.modelo if dispositivo else None,
+        dispositivo_foto_url=dispositivo.foto_url if dispositivo else None,
         precio_base=ticket.precio_base,
         precio_final=ticket.precio_final,
         creado_en=ticket.creado_en,
@@ -100,29 +106,38 @@ async def _validar_dispositivo_del_cliente(
         )
 
 
-async def _validar_garantia_activa(
-    db: AsyncSession,
-    ticket_id: uuid.UUID,
-) -> None:
+async def _obtener_garantia(db: AsyncSession, ticket_id: uuid.UUID):
     result = await db.execute(
         text(
-            "SELECT fecha_vencimiento FROM clientes.GARANTIA "
+            "SELECT fecha_inicio, fecha_vencimiento, usada FROM clientes.GARANTIA "
             "WHERE ticket_id = :tid"
         ),
         {"tid": str(ticket_id)},
     )
-    row = result.fetchone()
+    return result.fetchone()
+
+
+async def _validar_garantia_activa(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+) -> None:
+    row = await _obtener_garantia(db, ticket_id)
     if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No existe garantía registrada para este ticket.",
         )
-    if row[0] < datetime.now(timezone.utc):
+    if row.usada:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La garantía de este ticket ya fue utilizada.",
+        )
+    if row.fecha_vencimiento < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="La garantía de este ticket ya venció.",
         )
-    
+
 
 # Casos de uso
 # -------------------------------------------
@@ -156,7 +171,7 @@ async def crear_ticket(
         "servicio_id": str(ticket.servicio_id),
     })
 
-    return _a_response(ticket)
+    return await _a_response(db, ticket)
 
 
 async def obtener_ticket(
@@ -172,7 +187,7 @@ async def obtener_ticket(
     if not es_tecnico and ticket.cliente_id != usuario_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.")
 
-    return _a_response(ticket, ocultar_motivo=not es_tecnico)
+    return await _a_response(db, ticket, ocultar_motivo=not es_tecnico)
 
 
 async def listar_tickets_tecnico(
@@ -230,7 +245,8 @@ async def aceptar_ticket(
             detail=f"No se puede aceptar un ticket en estado '{ticket.estado}'.",
         )
 
-    await repo.aceptar_ticket(db, ticket_id, tecnico_id, float(payload.precio_final))
+    precio_final = payload.precio_final if payload.precio_final is not None else ticket.precio_base
+    await repo.aceptar_ticket(db, ticket_id, tecnico_id, float(precio_final))
     await db.commit()
 
     ticket = await repo.obtener_por_id(db, ticket_id)
@@ -240,8 +256,8 @@ async def aceptar_ticket(
         "cliente_id": str(ticket.cliente_id),
         "precio_final": str(ticket.precio_final),
     })
-    
-    return _a_response(ticket)
+
+    return await _a_response(db, ticket)
 
 
 async def rechazar_ticket(
@@ -270,7 +286,7 @@ async def rechazar_ticket(
         "motivo_rechazo": ticket.motivo_rechazo,
     })
 
-    return _a_response(ticket)
+    return await _a_response(db, ticket)
 
 
 async def confirmar_entrega_tecnico(
@@ -302,7 +318,7 @@ async def confirmar_entrega_tecnico(
         "cliente_id": str(ticket.cliente_id),
     })
 
-    return _a_response(ticket)
+    return await _a_response(db, ticket)
 
 
 async def confirmar_recepcion_cliente(
@@ -342,13 +358,14 @@ async def confirmar_recepcion_cliente(
         "fecha_finalizacion": ticket.fecha_finalizacion.isoformat(),
     })
 
-    return _a_response(ticket)
+    return await _a_response(db, ticket)
 
 
 async def reabrir_por_garantia(
     db: AsyncSession,
     ticket_id: uuid.UUID,
     cliente_id: uuid.UUID,
+    descripcion_incidente: Optional[str] = None,
 ) -> TicketResponse:
     ticket = await repo.obtener_por_id(db, ticket_id)
     if not ticket:
@@ -362,7 +379,16 @@ async def reabrir_por_garantia(
         )
 
     await _validar_garantia_activa(db, ticket_id)
+    if descripcion_incidente:
+        nueva_descripcion = (
+            f"{ticket.descripcion}\n\n[Incidente de garantía "
+            f"{datetime.now(timezone.utc).date().isoformat()}]: {descripcion_incidente}"
+            if ticket.descripcion
+            else f"[Incidente de garantía {datetime.now(timezone.utc).date().isoformat()}]: {descripcion_incidente}"
+        )
+        await repo.actualizar_descripcion(db, ticket_id, nueva_descripcion)
     await repo.reabrir_ticket(db, ticket_id)
+    await repo.marcar_garantia_usada(db, ticket_id)
     await db.commit()
 
     ticket = await repo.obtener_por_id(db, ticket_id)
@@ -373,7 +399,7 @@ async def reabrir_por_garantia(
         "tecnico_id": str(ticket.tecnico_id) if ticket.tecnico_id else None,
     })
 
-    return _a_response(ticket)
+    return await _a_response(db, ticket)
 
 
 async def archivar_ticket(

@@ -266,3 +266,26 @@ async def reabrir_ticket(
             actualizado_en=datetime.now(timezone.utc),
         )
     )
+
+
+async def actualizar_descripcion(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+    descripcion: str,
+) -> None:
+    await db.execute(
+        update(Ticket)
+        .where(Ticket.ticket_id == ticket_id)
+        .values(descripcion=descripcion)
+    )
+
+
+async def marcar_garantia_usada(
+    db: AsyncSession,
+    ticket_id: uuid.UUID,
+) -> None:
+    await db.execute(
+        update(Garantia)
+        .where(Garantia.ticket_id == ticket_id)
+        .values(usada=True)
+    )

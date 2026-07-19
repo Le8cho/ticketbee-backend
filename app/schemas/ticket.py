@@ -18,7 +18,7 @@ class TicketCrear(BaseModel):
 
 
 class TicketAceptar(BaseModel):
-    precio_final: Decimal = Field(..., gt=0, decimal_places=2)
+    precio_final: Optional[Decimal] = Field(None, gt=0, decimal_places=2)
 
 
 class TicketRechazar(BaseModel):
@@ -28,6 +28,10 @@ class TicketRechazar(BaseModel):
 class GarantiaCreate(BaseModel):
     fecha_inicio: datetime
     fecha_vencimiento: datetime
+
+
+class IncidenteGarantiaCreate(BaseModel):
+    descripcion: Optional[str] = Field(default=None, min_length=10, max_length=1000)
 
 
 # Responses
@@ -44,6 +48,7 @@ class TicketResponse(BaseModel):
     dispositivo_id: Optional[uuid.UUID]
     dispositivo_marca: Optional[str] = None
     dispositivo_modelo: Optional[str] = None
+    dispositivo_foto_url: Optional[str] = None
     estado: TicketEstado
     descripcion: Optional[str]
     precio_base: Optional[Decimal]
@@ -54,6 +59,9 @@ class TicketResponse(BaseModel):
     fecha_finalizacion: Optional[datetime]
     creado_en: datetime
     actualizado_en: Optional[datetime]
+    garantia_fecha_inicio: Optional[datetime] = None
+    garantia_fecha_vencimiento: Optional[datetime] = None
+    garantia_usada: Optional[bool] = None
 
 
 class TicketListItem(BaseModel):
@@ -66,6 +74,7 @@ class TicketListItem(BaseModel):
     dispositivo_id: Optional[uuid.UUID]
     dispositivo_marca: Optional[str] = None
     dispositivo_modelo: Optional[str] = None
+    dispositivo_foto_url: Optional[str] = None
     precio_base: Optional[Decimal]
     precio_final: Optional[Decimal]
     creado_en: datetime

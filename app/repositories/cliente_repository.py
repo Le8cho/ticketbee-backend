@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.cliente import Cliente
 from app.models.dispositivo import Dispositivo
+from app.models.garantia import Garantia
 from app.models.ticket import Ticket, ticket_dispositivo
 from app.models.servicio import Servicio
 
@@ -147,9 +148,12 @@ class ClienteRepository:
                 Ticket,
                 ticket_dispositivo.c.dispositivo_id,
                 Servicio.nombre.label("servicio_nombre"),
+                Garantia.fecha_inicio.label("garantia_fecha_inicio"),
+                Garantia.fecha_vencimiento.label("garantia_fecha_vencimiento"),
             )
             .join(ticket_dispositivo, ticket_dispositivo.c.ticket_id == Ticket.ticket_id)
             .outerjoin(Servicio, Servicio.servicio_id == Ticket.servicio_id)
+            .outerjoin(Garantia, Garantia.ticket_id == Ticket.ticket_id)
             .where(ticket_dispositivo.c.dispositivo_id.in_(dispositivo_ids))
             .order_by(Ticket.creado_en.desc())
         )

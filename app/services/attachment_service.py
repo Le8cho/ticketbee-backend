@@ -22,6 +22,8 @@ class AttachmentService:
         self.repo = AdjuntoRepository(db)
         self.db = db
 
+    _ESTADOS_CON_ADJUNTOS = (TicketEstado.EN_REVISION, TicketEstado.EN_PROGRESO)
+
     async def _get_ticket_en_progreso(self, ticket_id: uuid.UUID) -> Ticket:
         result = await self.db.execute(
             select(Ticket).where(Ticket.ticket_id == ticket_id)
@@ -29,10 +31,10 @@ class AttachmentService:
         ticket = result.scalar_one_or_none()
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
-        if ticket.estado != TicketEstado.EN_PROGRESO:
+        if ticket.estado not in self._ESTADOS_CON_ADJUNTOS:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Solo se pueden subir adjuntos a tickets en estado EN_PROGRESO",
+                detail="Solo se pueden subir adjuntos a tickets en estado EN_REVISION o EN_PROGRESO",
             )
         return ticket
 

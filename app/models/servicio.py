@@ -15,7 +15,7 @@ class Servicio(Base):
     )
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     tipo_servicio: Mapped[str] = mapped_column(
-        SAEnum("PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE", native_enum=False, length=30),
+        SAEnum("PREVENTIVO", "CORRECTIVO", "SUSCRIPCION_SOFTWARE", "OTROS", native_enum=False, length=30),
         nullable=False,
     )
     precio_base: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

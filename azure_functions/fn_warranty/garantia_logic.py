@@ -9,7 +9,7 @@ from email_client import enviar_email_garantia_activada
 
 logger = logging.getLogger(__name__)
 
-DIAS_GARANTIA = 7
+DIAS_GARANTIA = 14
 
 
 def calcular_vencimiento(fecha_finalizacion: datetime, dias: int = DIAS_GARANTIA) -> datetime:
