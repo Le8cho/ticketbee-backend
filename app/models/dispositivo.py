@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, SmallInteger, UniqueConstraint
+from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, SmallInteger, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from app.core.database import Base
@@ -9,7 +9,18 @@ from app.core.database import Base
 class Dispositivo(Base):
     __tablename__ = "dispositivo"
     __table_args__ = (
-        UniqueConstraint("cliente_id", "numero_serie", name="uq_dispositivo_cliente_serie"),
+        # Filtrado (WHERE numero_serie IS NOT NULL): en SQL Server un UNIQUE
+        # constraint normal trata NULL como un valor más, así que un segundo
+        # dispositivo sin número de serie para el mismo cliente violaría la
+        # unicidad. El filtro permite múltiples NULL y solo exige unicidad
+        # entre números de serie reales.
+        Index(
+            "uq_dispositivo_cliente_serie",
+            "cliente_id",
+            "numero_serie",
+            unique=True,
+            mssql_where=text("numero_serie IS NOT NULL"),
+        ),
         {"schema": "clientes"},
     )
 

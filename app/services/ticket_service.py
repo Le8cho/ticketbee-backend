@@ -32,6 +32,7 @@ async def _a_response(db: AsyncSession, ticket, ocultar_motivo: bool = False) ->
         cliente_id=ticket.cliente_id,
         servicio_id=ticket.servicio_id,
         servicio_nombre=ticket.servicio.nombre if ticket.servicio else None,
+        servicio_tipo=ticket.servicio.tipo_servicio if ticket.servicio else None,
         tecnico_id=ticket.tecnico_id,
         dispositivo_id=dispositivo.dispositivo_id if dispositivo else None,
         dispositivo_marca=dispositivo.marca if dispositivo else None,

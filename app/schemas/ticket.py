@@ -44,6 +44,7 @@ class TicketResponse(BaseModel):
     cliente_id: uuid.UUID
     servicio_id: uuid.UUID
     servicio_nombre: Optional[str] = None
+    servicio_tipo: Optional[str] = None
     tecnico_id: Optional[uuid.UUID]
     dispositivo_id: Optional[uuid.UUID]
     dispositivo_marca: Optional[str] = None
